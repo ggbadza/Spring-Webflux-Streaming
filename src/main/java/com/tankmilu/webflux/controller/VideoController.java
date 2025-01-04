@@ -2,6 +2,7 @@ package com.tankmilu.webflux.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -19,7 +20,14 @@ import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/video")
@@ -37,19 +45,29 @@ public class VideoController {
 
 
     @GetMapping("/{name}")
-    public Mono<ResponseEntity<Flux<DataBuffer>>> getVideo(
+    public Mono<ResponseEntity<Mono<DataBuffer>>> getVideo(
             @PathVariable String name,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
 
-        File videoFile;
+        Path videoPath;
         try {
-            videoFile = ResourceUtils.getFile(STR."classpath:video/\{name}"); // 비디오 파일 경로
-        } catch (IOException e) {
+            videoPath = new ClassPathResource("video/" + name).getFile().toPath(); // 비디오 파일 경로
+        } catch (Exception e) {
+            log.error(e.toString());
             return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Video not found"));
         }
 
-        // 비디오 파일 속성
-        long fileLength = videoFile.length();
+        long fileLength;
+        String contentType = "video/mp4";
+
+        try {
+            fileLength = Files.size(videoPath);
+            contentType = Optional.ofNullable(Files.probeContentType(videoPath)).orElse("video/mp4");
+        } catch (IOException e) {
+            log.error(e.toString());
+            return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "IO Error"));
+        }
+
         long start = 0;
         long end = fileLength - 1;
 
@@ -63,18 +81,57 @@ public class VideoController {
             }
         }
 
-        // 비디오 파일의 해당 범위를 읽어 스트리밍
-        Resource resource = new FileSystemResource(videoFile);
-        Flux<DataBuffer> videoFlux = DataBufferUtils.read(resource, new DefaultDataBufferFactory(), CHUNK_SIZE)
-                .skip(start / CHUNK_SIZE)  // 청크 단위로 건너뛰기
-                .take((end - start + 1) / CHUNK_SIZE); // 끝 범위까지 가져오기
+        // 람다함수용 final 변수
+        long finalStart = start;
+        long finalEnd = Math.min(start + CHUNK_SIZE - 1,end);
+        int finalChunkSize = (int) Math.min(CHUNK_SIZE, end - start + 1);
+
+        Mono<DataBuffer> videoMono = Mono.create(sink -> { // Consumer<FluxSink<T>> 객체 받음
+            try {
+                AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(videoPath, StandardOpenOption.READ);
+                ByteBuffer buffer = ByteBuffer.allocate(finalChunkSize);
+
+                fileChannel.read(buffer, finalStart, null, new java.nio.channels.CompletionHandler<Integer, Void>() {
+                    @Override
+                    public void completed(Integer result, Void attachment) {
+                        if (result == -1) {
+                            sink.success();
+                            try {
+                                fileChannel.close();
+                            } catch (IOException ignored) {
+                            }
+                            return;
+                        }
+
+                        buffer.flip();
+                        DataBuffer dataBuffer = new DefaultDataBufferFactory().wrap(buffer);
+                        sink.success(dataBuffer); // Send the single DataBuffer and complete
+                        try {
+                            fileChannel.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+
+                    @Override
+                    public void failed(Throwable exc, Void attachment) {
+                        sink.error(exc);
+                        try {
+                            fileChannel.close();
+                        } catch (IOException ignored) {
+                        }
+                    }
+                });
+            } catch (IOException e) {
+                sink.error(e);
+            }
+        });
 
         return Mono.just(
                 ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                        .header(HttpHeaders.CONTENT_TYPE, "video/mp4")
-                        .header(HttpHeaders.CONTENT_RANGE, "bytes " + start + "-" + end + "/" + fileLength)
+                        .header(HttpHeaders.CONTENT_TYPE, contentType)
+                        .header(HttpHeaders.CONTENT_RANGE, "bytes " + finalStart + "-" + finalEnd + "/" + fileLength)
                         .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(end - start + 1))
-                        .body(videoFlux)
+                        .body(videoMono)
         );
     }
 }
