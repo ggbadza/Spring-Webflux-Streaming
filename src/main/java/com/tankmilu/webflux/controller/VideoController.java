@@ -24,7 +24,6 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class VideoController {
 
-    @Autowired
     private final VideoService videoService;
 
     @GetMapping("/test")
