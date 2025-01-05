@@ -17,14 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.AsynchronousFileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/video")
@@ -49,7 +41,6 @@ public class VideoController {
                 ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                         .header(HttpHeaders.CONTENT_TYPE, videoMonoRecord.contentType())
                         .header(HttpHeaders.CONTENT_RANGE, videoMonoRecord.contentRange())
-                        .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(videoMonoRecord.contentLength()))
                         .body(videoMonoRecord.data())
         );
     }
