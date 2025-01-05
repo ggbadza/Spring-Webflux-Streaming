@@ -1,6 +1,12 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.service.VideoService;
+import com.tankmilu.webflux.service.VideoServiceImpl;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -10,11 +16,17 @@ import reactor.test.StepVerifier;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SpringBootTest
 class VideoControllerTest {
+
+    @Autowired
+    private VideoController videoController;
+
+    @Autowired
+    private VideoService videoService;
 
     @Test
     void getVideo() {
-        VideoController videoController = new VideoController();
         StepVerifier.create(videoController.test())
                 .expectNext("test")
                 .verifyComplete();
@@ -22,7 +34,6 @@ class VideoControllerTest {
 
     @Test
     void getVideoWithFileNameAndRange() {
-        VideoController videoController = new VideoController();
         String rangeHeader1 = "bytes=0-10000000"; // 10MB
         String rangeHeader2 = "bytes=0-"; 
         String rangeHeader3 = "bytes=0-100";
