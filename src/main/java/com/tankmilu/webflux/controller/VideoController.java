@@ -31,16 +31,26 @@ public class VideoController {
         return Mono.just("test");
     }
 
-    @GetMapping("/{name}")
+    @GetMapping("/file")
     public Mono<ResponseEntity<Mono<DataBuffer>>> getVideo(
-            @PathVariable String name,
+            @RequestParam String fn,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
-        VideoMonoRecord videoMonoRecord = videoService.getVideoChunk(name, rangeHeader);
+        VideoMonoRecord videoMonoRecord = videoService.getVideoChunk(fn, rangeHeader);
         return Mono.just(
                 ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                         .header(HttpHeaders.CONTENT_TYPE, videoMonoRecord.contentType())
                         .header(HttpHeaders.CONTENT_RANGE, videoMonoRecord.contentRange())
                         .body(videoMonoRecord.data())
         );
+    }
+
+    @GetMapping("/hlsvideo")
+    public Mono<String> getHlsM3U8(
+            @RequestParam String fn) {
+        try {
+            return Mono.just(videoService.getHlsOriginal(fn));
+        } catch (Exception e) {
+            return Mono.just("IO Error");
+        }
     }
 }

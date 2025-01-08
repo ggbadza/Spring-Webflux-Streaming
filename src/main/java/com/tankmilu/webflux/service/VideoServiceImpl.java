@@ -2,6 +2,10 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.record.VideoMonoRecord;
 import lombok.extern.slf4j.Slf4j;
+import net.bramp.ffmpeg.FFmpeg;
+import net.bramp.ffmpeg.FFprobe;
+import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
@@ -22,9 +26,15 @@ import java.util.Optional;
 
 @Slf4j
 @Service
-public class VideoServiceImpl implements VideoService {
+public class VideoServiceImpl implements VideoService  {
 
     private static final int CHUNK_SIZE = 1024 * 1024;
+
+    @Value("${custom.ffmpeg.ffmpeg}")
+    public String ffmpegDir;
+
+    @Value("${custom.ffmpeg.ffProbe}")
+    public String ffprobeDir;
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader){
         Path videoPath;
@@ -108,6 +118,14 @@ public class VideoServiceImpl implements VideoService {
         });
         rangeRes = "bytes " + finalStart + "-" + finalEnd + "/" + fileLength;
         return new VideoMonoRecord(contentType,rangeRes,contentLength,videoMono);
+    }
+
+    public String getHlsOriginal  (String filename) throws IOException {
+        FFmpeg ffmpeg = new FFmpeg(ffmpegDir);
+        FFprobe ffprobe = new FFprobe(ffprobeDir);
+        FFmpegBuilder builder = new FFmpegBuilder()
+                .setInput(filename);
+        return "test";
     }
 
 }
