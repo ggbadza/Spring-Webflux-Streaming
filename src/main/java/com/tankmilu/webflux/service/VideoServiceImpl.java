@@ -5,6 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFmpeg;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.builder.FFmpegBuilder;
+import net.bramp.ffmpeg.probe.FFmpegFormat;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
+import net.bramp.ffmpeg.probe.FFmpegStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -15,14 +18,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,7 +42,7 @@ public class VideoServiceImpl implements VideoService  {
     @Value("${custom.ffmpeg.ffmpeg}")
     public String ffmpegDir;
 
-    @Value("${custom.ffmpeg.ffProbe}")
+    @Value("${custom.ffmpeg.ffprobe}")
     public String ffprobeDir;
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader){
@@ -120,12 +129,50 @@ public class VideoServiceImpl implements VideoService  {
         return new VideoMonoRecord(contentType,rangeRes,contentLength,videoMono);
     }
 
-    public String getHlsOriginal  (String filename) throws IOException {
-        FFmpeg ffmpeg = new FFmpeg(ffmpegDir);
-        FFprobe ffprobe = new FFprobe(ffprobeDir);
-        FFmpegBuilder builder = new FFmpegBuilder()
-                .setInput(filename);
-        return "test";
+    public Mono<String> getHlsOriginal (String filename) throws IOException {
+        return Mono.create(sink -> {
+            try {
+                // 비디오 파일 경로
+                File videoPath = new ClassPathResource("video/" + filename).getFile();
+                log.info("Video path: {}", videoPath.getPath());
+                // FFprobe 명령어 생성
+                ProcessBuilder processBuilder = new ProcessBuilder(
+                        ffprobeDir,
+                        "-select_streams", "v:0",
+                        "-skip_frame", "nokey",
+                        "-show_entries", "frame=pkt_pts_time,pkt_pos,flags",
+                        "-of", "csv",
+                        videoPath.getPath()
+                );
+
+                // 프로세스 실행
+                Process process = processBuilder.start();
+
+                // 프로세스 종료 대기
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        // 프로세스 출력
+                        String result;
+                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                            result = reader.lines()
+                                    .collect(Collectors.joining("\n"));
+                        }
+
+                        // 종료 코드 확인
+                        int exitCode = process.waitFor();
+                        if (exitCode == 0) {
+                            sink.success(result); // 결과 반환
+                        } else {
+                            sink.error(new RuntimeException("FFprobe execution failed with exit code: " + exitCode));
+                        }
+                    } catch (Exception e) {
+                        sink.error(e); // 에러 처리
+                    }
+                });
+            } catch (Exception e) {
+                sink.error(e);
+            }
+        });
     }
 
 }

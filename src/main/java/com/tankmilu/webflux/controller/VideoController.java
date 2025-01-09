@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
+import java.io.IOException;
 
 
 @RestController
@@ -45,12 +48,7 @@ public class VideoController {
     }
 
     @GetMapping("/hlsvideo")
-    public Mono<String> getHlsM3U8(
-            @RequestParam String fn) {
-        try {
-            return Mono.just(videoService.getHlsOriginal(fn));
-        } catch (Exception e) {
-            return Mono.just("IO Error");
-        }
+    public Mono<String> getHlsM3U8(@RequestParam String fn) throws IOException {
+        return videoService.getHlsOriginal(fn);
     }
 }
