@@ -129,8 +129,7 @@ public class VideoServiceImpl implements VideoService  {
         return new VideoMonoRecord(contentType,rangeRes,contentLength,videoMono);
     }
 
-    public Mono<String> getHlsOriginal (String filename) throws IOException {
-        return Mono.create(sink -> {
+    public String getHlsOriginal (String filename) throws IOException {
             try {
                 // 비디오 파일 경로
                 File videoPath = new ClassPathResource("video/" + filename).getFile();
@@ -138,41 +137,36 @@ public class VideoServiceImpl implements VideoService  {
                 // FFprobe 명령어 생성
                 ProcessBuilder processBuilder = new ProcessBuilder(
                         ffprobeDir,
-                        "-select_streams", "v:0",
-                        "-skip_frame", "nokey",
-                        "-show_entries", "frame=pkt_pts_time,pkt_pos,flags",
-                        "-of", "csv",
-                        videoPath.getPath()
+                                "-select_streams" , "v:0",
+                                "-skip_frame", "nokey",
+                                "-show_entries" , "frame=pts_time,pkt_pos",
+                                "-of", "csv",
+                                videoPath.getPath()
                 );
+                processBuilder.redirectErrorStream(true); // 표준출력과 에러 같이 출력
+                log.info("Process builder: {}", processBuilder);
+                Process process = processBuilder.start(); // 프로세스 실행
+                log.info("Process started: {}", process);
+//                processBuilder.redirectError(new File("C:/app/null.txt"));
 
-                // 프로세스 실행
-                Process process = processBuilder.start();
-
-                // 프로세스 종료 대기
-                CompletableFuture.runAsync(() -> {
-                    try {
-                        // 프로세스 출력
-                        String result;
-                        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                            result = reader.lines()
-                                    .collect(Collectors.joining("\n"));
-                        }
-
-                        // 종료 코드 확인
-                        int exitCode = process.waitFor();
-                        if (exitCode == 0) {
-                            sink.success(result); // 결과 반환
-                        } else {
-                            sink.error(new RuntimeException("FFprobe execution failed with exit code: " + exitCode));
-                        }
-                    } catch (Exception e) {
-                        sink.error(e); // 에러 처리
+                // 프로세스 출력
+                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                StringBuilder output = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("frame")) { // frame 라인만 출력
+                        output.append(line).append("\n");
                     }
-                });
+                }
+
+                // 종료 코드 확인
+                int exitCode = process.waitFor();
+                return output.toString(); // 프로세스 출력 반환
             } catch (Exception e) {
-                sink.error(e);
+                log.error("FFprobe 에러: {}", e.getMessage(), e);
+                throw new IOException("FFprobe 실행 에러", e);
             }
-        });
+
     }
 
 }

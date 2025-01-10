@@ -10,5 +10,5 @@ public interface VideoService {
     // 단일 Video 청크를 리턴하는 메소드
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader);
 
-    public Mono<String> getHlsOriginal(String filename) throws IOException;
+    public String getHlsOriginal(String filename) throws IOException;
 }
