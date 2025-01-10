@@ -49,6 +49,8 @@ public class VideoController {
 
     @GetMapping("/hlsvideo")
     public Mono<String> getHlsM3U8(@RequestParam String fn) throws IOException {
-        return videoService.getHlsOriginal(fn);
+        return Mono.fromCallable(() -> videoService.getHlsOriginal(fn)) // 비동기 작업 래핑
+                .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
+                .onErrorReturn("IO ERROR");
     }
 }
