@@ -25,9 +25,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class VideoServiceImpl implements VideoService  {
 
-    private static final int CHUNK_SIZE = 1024 * 1024;
+    private static final int CHUNK_SIZE = 1024 * 1024 * 100;
 
     private final FFmpegService ffmpegService;
+
+    private final String videoFileUrl = "http://127.0.0.1:8081/video/file";
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader){
         Path videoPath;
@@ -114,7 +116,35 @@ public class VideoServiceImpl implements VideoService  {
     }
 
     public String getHlsOriginal (String filename) throws IOException {
-        return ffmpegService.getVideoKeyFrame(filename);
+        List<List<String>> keyFrameStrings=ffmpegService.parseFrames(ffmpegService.getVideoKeyFrame(filename));
+        log.info(keyFrameStrings.toString());
+        log.info(String.valueOf(keyFrameStrings.size()));
+        StringBuilder m3u8Builder = new StringBuilder();
+
+        m3u8Builder.append("#EXTM3U\n");
+        m3u8Builder.append("#EXT-X-VERSION:3\n");
+        m3u8Builder.append("#EXT-X-TARGETDURATION:20\n"); // 각 세그먼트 최대 길이 지정
+        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:1\n\n");
+
+        Double prevTime=0.0;
+        Double nowTime=0.0;
+        Integer prevBytes=0;
+        Integer nowBytes=0;
+        for (List<String> keyFrame : keyFrameStrings) {
+            if (prevTime+10<(nowTime=Double.parseDouble(keyFrame.get(1)))){
+                nowBytes=Integer.parseInt(keyFrame.get(2));
+                m3u8Builder.append("#EXTINF:"+String.valueOf(nowTime-prevTime)+",\n");
+                m3u8Builder.append(videoFileUrl+"?fn="+filename+"&bytes="+String.valueOf(prevBytes)+"-"+String.valueOf(nowBytes)+"\n");
+                prevTime=nowTime;
+                prevBytes=nowBytes;
+            }
+        }
+        m3u8Builder.append("#EXTINF:10,\n");
+        m3u8Builder.append(videoFileUrl+"?fn="+filename+"&bytes="+String.valueOf(nowBytes)+"-\n");
+        m3u8Builder.append("\n");
+        m3u8Builder.append("#EXT-X-ENDLIST");
+
+        return m3u8Builder.toString();
     }
 
 }
