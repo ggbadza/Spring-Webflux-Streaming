@@ -1,11 +1,20 @@
 package com.tankmilu.webflux.service;
 
+import org.springframework.core.io.InputStreamResource;
+
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 
 public interface FFmpegService {
 
-    String getVideoKeyFrame(String filename) throws IOException;
+    HashMap<String,String> getVideoMetaData(String filename) throws IOException;
 
-    List<List<String>> parseFrames(String frames);
+    List<List<String>> getVideoKeyFrame(String filename) throws IOException;
+
+    Double getVideoDuration(String filename) throws IOException;
+
+    InputStreamResource getInitData(String filename) throws IOException;
+
+    InputStreamResource getM4sData(String filename, String start, String end) throws IOException;
 }

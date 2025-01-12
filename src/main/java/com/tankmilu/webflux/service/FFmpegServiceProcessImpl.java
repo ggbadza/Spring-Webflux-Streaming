@@ -1,15 +1,16 @@
 package com.tankmilu.webflux.service;
 
 import lombok.extern.slf4j.Slf4j;
+import net.bramp.ffmpeg.FFprobe;
+import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 @Slf4j
@@ -22,11 +23,29 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     @Value("${custom.ffmpeg.ffprobe}")
     public String ffprobeDir;
 
-    public String getVideoKeyFrame(String filename) throws IOException {
+    @Override
+    public HashMap<String, String> getVideoMetaData(String filename) throws IOException {
+        FFprobe ffprobe = new FFprobe(ffprobeDir);
+        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+        FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
+
+        HashMap<String, String> metaData = new HashMap<>();
+
+        // 해시맵에 입력
+        metaData.put("format", probeResult.getFormat().format_name);
+        metaData.put("duration", String.valueOf(probeResult.getFormat().duration));
+        metaData.put("bitrate", String.valueOf(probeResult.getFormat().bit_rate));
+        metaData.put("size", String.valueOf(probeResult.getFormat().size));
+        log.info("ffmpeg probe result: {}", probeResult);
+        return metaData;
+    }
+
+    @Override
+    public List<List<String>> getVideoKeyFrame(String filename) throws IOException {
         try {
             // 비디오 파일 경로
-            File videoPath = new ClassPathResource("video/" + filename).getFile();
-            log.info("Video path: {}", videoPath.getPath());
+            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+            log.info("Video path: {}", videoPath);
             // FFprobe 명령어 생성
             ProcessBuilder processBuilder = new ProcessBuilder(
                     ffprobeDir,
@@ -34,7 +53,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-skip_frame", "nokey",
                     "-show_entries" , "frame=pts_time,pkt_pos", // 각 키 프레임 시간, 해당 바이트 위치
                     "-of", "csv",
-                    videoPath.getPath()
+                    videoPath
             );
             // 에러 출력 널라우팅
             if (System.getProperty("os.name").toLowerCase().contains("win")) {
@@ -51,17 +70,24 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             StringBuilder output = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
-//                if (line.startsWith("frame")) { // frame 라인만 출력
                 output.append(line).append("\n");
-//                }
             }
 
             // 종료 코드 확인
-            return output.toString(); // 프로세스 출력 반환
+            return parseFrames(output.toString()); // 프로세스 출력 반환
         } catch (Exception e) {
             log.error("FFprobe 에러: {}", e.getMessage(), e);
             throw new IOException("FFprobe 실행 에러", e);
         }
+    }
+
+    @Override
+    public Double getVideoDuration(String filename) throws IOException {
+        FFprobe ffprobe = new FFprobe(ffprobeDir);
+        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+        FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
+
+        return probeResult.getFormat().duration;
     }
 
     public List<List<String>> parseFrames(String frames){
@@ -73,8 +99,86 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             List<String> frameList = List.of(data);
             result.add(frameList);
         }
-
         return result;
 
     }
+
+    @Override
+    public InputStreamResource getInitData(String filename) throws IOException{
+        try {
+            // 비디오 파일 경로
+            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+            log.info("Video path: {}", videoPath);
+            // FFmpeg 명령어 생성
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    ffmpegDir,
+                    "-i", videoPath,
+                    "-c:v", "copy",           // 비디오 스트림 복사
+                    "-f", "mp4",
+                    "-movflags", "empty_moov+frag_keyframe",
+                    "-t", "0",                // 비디오 데이터 제외
+                    "pipe:1"
+            );
+            // 에러 출력 널라우팅
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                processBuilder.redirectError(new File("NUL")); // Windows
+            } else {
+                processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
+            }
+            log.info("Process builder: {}", processBuilder);
+            Process process = processBuilder.start(); // 프로세스 실행
+            log.info("Process started: {}", process);
+
+            // 프로세스 출력
+            InputStream inputStream = process.getInputStream();
+            InputStreamResource resource = new InputStreamResource(inputStream);
+
+            // 종료 코드 확인
+            return resource; // 프로세스 출력 반환
+        } catch (Exception e) {
+            log.error("FFmpeg 에러: {}", e.getMessage(), e);
+            throw new IOException("FFmpeg 실행 에러", e);
+        }
+    }
+
+    @Override
+    public InputStreamResource getM4sData(String filename, String start, String to) throws IOException {
+        try {
+            // 비디오 파일 경로
+            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+            log.info("Video path: {}", videoPath);
+            // FFmpeg 명령어 생성
+            ProcessBuilder processBuilder = new ProcessBuilder(
+                    ffmpegDir,
+                    "-ss", start, // ss가 앞에 있어야 인코딩 보다 오프셋 위치 먼저 찾아감
+                    "-i", videoPath,
+                    "-to", to,
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-f", "mp4",
+                    "-movflags", "frag_keyframe+empty_moov",
+                    "pipe:1"
+            );
+            // 에러 출력 널라우팅
+            if (System.getProperty("os.name").toLowerCase().contains("win")) {
+                processBuilder.redirectError(new File("NUL")); // Windows
+            } else {
+                processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
+            }
+            log.info("Process builder: {}", processBuilder);
+            Process process = processBuilder.start(); // 프로세스 실행
+            log.info("Process started: {}", process);
+
+            // 프로세스 출력
+            InputStream inputStream = process.getInputStream();
+            InputStreamResource resource = new InputStreamResource(inputStream);
+
+            // 종료 코드 확인
+            return resource; // 프로세스 출력 반환
+        } catch (Exception e) {
+            log.error("FFmpeg 에러: {}", e.getMessage(), e);
+            throw new IOException("FFmpeg 실행 에러", e);
+        }
+    }
+
 }
