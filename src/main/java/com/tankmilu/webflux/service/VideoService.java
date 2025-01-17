@@ -14,5 +14,5 @@ public interface VideoService {
 
     InputStreamResource getHlsInitData(String filename) throws IOException;
 
-    InputStreamResource getHlsM4s(String filename, String start, String end) throws IOException;
+    InputStreamResource getHlsTs(String filename, String start, String end) throws IOException;
 }

@@ -113,10 +113,12 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             ProcessBuilder processBuilder = new ProcessBuilder(
                     ffmpegDir,
                     "-i", videoPath,
+                    "-an",
+                    "-vn",
                     "-c:v", "copy",           // 비디오 스트림 복사
                     "-f", "mp4",
-                    "-movflags", "empty_moov+frag_keyframe",
-                    "-t", "0",                // 비디오 데이터 제외
+                    "-movflags", "frag_keyframe+empty_moov+separate_moof",
+//                    "-t", "0",                // 비디오 데이터 제외
                     "pipe:1"
             );
             // 에러 출력 널라우팅
@@ -142,7 +144,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     }
 
     @Override
-    public InputStreamResource getM4sData(String filename, String start, String to) throws IOException {
+    public InputStreamResource getTsData(String filename, String start, String to) throws IOException {
         try {
             // 비디오 파일 경로
             String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
@@ -153,10 +155,13 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-ss", start, // ss가 앞에 있어야 인코딩 보다 오프셋 위치 먼저 찾아감
                     "-i", videoPath,
                     "-to", to,
+//                    "-to", Integer.valueOf(Integer.valueOf(start)+10).toString(),
                     "-c:v", "libx264",
                     "-preset", "fast",
-                    "-f", "mp4",
-                    "-movflags", "frag_keyframe+empty_moov",
+                    "-c:a", "aac",
+                    "-f", "mpegts",
+                    "-muxdelay", "0.1",        // 타임스탬프 동기화
+                    "-copyts",                 // 원본 타임스탬프 유지
                     "pipe:1"
             );
             // 에러 출력 널라우팅

@@ -127,23 +127,22 @@ public class VideoController {
                     String errorMessage = "Error occurred: " + e.getMessage();
                     InputStream errorStream = new ByteArrayInputStream(errorMessage.getBytes(StandardCharsets.UTF_8));
                     InputStreamResource errorResource = new InputStreamResource(errorStream);
-
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "text/plain");
                     return Mono.just(new ResponseEntity<>(errorResource, headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
-    @GetMapping("/hlsm4s")
-    public Mono<ResponseEntity<InputStreamResource>> getM4sVideo(
+    @GetMapping("/hlsts")
+    public Mono<ResponseEntity<InputStreamResource>> getTsVideo(
             @RequestParam String fn,
             @RequestParam String ss,
             @RequestParam String to) {
-        return Mono.fromCallable(() -> videoService.getHlsM4s(fn, ss, to))
+        return Mono.fromCallable(() -> videoService.getHlsTs(fn, ss, to))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
+                    headers.add(HttpHeaders.CONTENT_TYPE, "video/MP2T;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
                 })
                 .onErrorResume(e -> {
@@ -151,7 +150,6 @@ public class VideoController {
                     String errorMessage = "Error occurred: " + e.getMessage();
                     InputStream errorStream = new ByteArrayInputStream(errorMessage.getBytes(StandardCharsets.UTF_8));
                     InputStreamResource errorResource = new InputStreamResource(errorStream);
-
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "text/plain");
                     return Mono.just(new ResponseEntity<>(errorResource, headers, HttpStatus.INTERNAL_SERVER_ERROR));
