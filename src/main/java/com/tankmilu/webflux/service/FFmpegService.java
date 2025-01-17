@@ -17,4 +17,5 @@ public interface FFmpegService {
     InputStreamResource getInitData(String filename) throws IOException;
 
     InputStreamResource getTsData(String filename, String start, String end) throws IOException;
+    InputStreamResource getTsData(String filename, String start, String end, String type) throws IOException;
 }

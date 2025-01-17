@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -40,6 +41,21 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         return metaData;
     }
 
+    public InputStream executeCommand(ProcessBuilder processBuilder) throws IOException{
+        // 에러 출력 널라우팅
+        if (System.getProperty("os.name").toLowerCase().contains("win")) {
+            processBuilder.redirectError(new File("NUL")); // Windows
+        } else {
+            processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
+        }
+        Process process = processBuilder.start(); // 프로세스 실행
+
+        // 종료 코드 확인
+        return process.getInputStream();
+    }
+
+
+
     @Override
     public List<List<String>> getVideoKeyFrame(String filename) throws IOException {
         try {
@@ -55,18 +71,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-of", "csv",
                     videoPath
             );
-            // 에러 출력 널라우팅
-            if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                processBuilder.redirectError(new File("NUL")); // Windows
-            } else {
-                processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
-            }
-            log.info("Process builder: {}", processBuilder);
-            Process process = processBuilder.start(); // 프로세스 실행
-            log.info("Process started: {}", process);
+            InputStream inputStream = executeCommand(processBuilder);
 
             // 프로세스 출력
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
             StringBuilder output = new StringBuilder();
             String line;
             while ((line = reader.readLine()) != null) {
@@ -121,22 +129,8 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 //                    "-t", "0",                // 비디오 데이터 제외
                     "pipe:1"
             );
-            // 에러 출력 널라우팅
-            if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                processBuilder.redirectError(new File("NUL")); // Windows
-            } else {
-                processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
-            }
-            log.info("Process builder: {}", processBuilder);
-            Process process = processBuilder.start(); // 프로세스 실행
-            log.info("Process started: {}", process);
 
-            // 프로세스 출력
-            InputStream inputStream = process.getInputStream();
-            InputStreamResource resource = new InputStreamResource(inputStream);
-
-            // 종료 코드 확인
-            return resource; // 프로세스 출력 반환
+            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
         } catch (Exception e) {
             log.error("FFmpeg 에러: {}", e.getMessage(), e);
             throw new IOException("FFmpeg 실행 에러", e);
@@ -156,30 +150,65 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-i", videoPath,
                     "-to", to,
 //                    "-to", Integer.valueOf(Integer.valueOf(start)+10).toString(),
-                    "-c:v", "libx264",
+                    "-c:v", "libx265",
                     "-preset", "fast",
                     "-c:a", "aac",
                     "-f", "mpegts",
-                    "-muxdelay", "0.1",        // 타임스탬프 동기화
+                    "-muxdelay", "0.1",
                     "-copyts",                 // 원본 타임스탬프 유지
                     "pipe:1"
             );
-            // 에러 출력 널라우팅
-            if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                processBuilder.redirectError(new File("NUL")); // Windows
-            } else {
-                processBuilder.redirectError(new File("/dev/null")); // Unix/Linux
+
+            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
+        } catch (Exception e) {
+            log.error("FFmpeg 에러: {}", e.getMessage(), e);
+            throw new IOException("FFmpeg 실행 에러", e);
+        }
+    }
+
+    public InputStreamResource getTsData(String filename, String start, String to, String type) throws IOException {
+        try {
+            log.info("type: {}", type);
+            // 비디오 파일 경로
+            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+            log.info("Video path: {}", videoPath);
+
+            // FFmpeg 명령어 생성
+            List<String> command = new ArrayList<>(Arrays.asList(
+                    ffmpegDir,
+                    "-ss", start,
+                    "-i", videoPath,
+                    "-c:v", "libx265",
+                    "-preset", "fast",
+                    "-to", to,
+                    "-c:a", "aac",
+                    "-f", "mpegts",
+                    "-muxdelay", "0.1",
+                    "-copyts",
+                    "pipe:1"
+            ));
+
+            // 해상도 옵션 동적으로 추가
+            if (type.equals("1")) {
+                command.add(command.indexOf("-c:v") + 2, "-vf");
+                command.add(command.indexOf("-c:v") + 3, "scale=-2:480");
+            } else if (type.equals("2")) {
+                command.add(command.indexOf("-c:v") + 2, "-vf");
+                command.add(command.indexOf("-c:v") + 3, "scale=-2:720");
+            } else if (type.equals("3")) {
+                command.add(command.indexOf("-c:v") + 2, "-vf");
+                command.add(command.indexOf("-c:v") + 3, "scale=-2:1080");
+            } else if (type.equals("4")) {
+                command.add(command.indexOf("-c:v") + 2, "-vf");
+                command.add(command.indexOf("-c:v") + 3, "scale=-2:1440");
             }
-            log.info("Process builder: {}", processBuilder);
-            Process process = processBuilder.start(); // 프로세스 실행
-            log.info("Process started: {}", process);
 
-            // 프로세스 출력
-            InputStream inputStream = process.getInputStream();
-            InputStreamResource resource = new InputStreamResource(inputStream);
+            log.info("command: {}", command);
 
-            // 종료 코드 확인
-            return resource; // 프로세스 출력 반환
+            // ProcessBuilder 생성
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+
+            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
         } catch (Exception e) {
             log.error("FFmpeg 에러: {}", e.getMessage(), e);
             throw new IOException("FFmpeg 실행 에러", e);

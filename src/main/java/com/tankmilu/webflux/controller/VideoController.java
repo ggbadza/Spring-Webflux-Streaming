@@ -137,8 +137,9 @@ public class VideoController {
     public Mono<ResponseEntity<InputStreamResource>> getTsVideo(
             @RequestParam String fn,
             @RequestParam String ss,
-            @RequestParam String to) {
-        return Mono.fromCallable(() -> videoService.getHlsTs(fn, ss, to))
+            @RequestParam String to,
+            @RequestParam(required = false, defaultValue = "0") String type) {
+        return Mono.fromCallable(() -> videoService.getHlsTs(fn, ss, to, type))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();

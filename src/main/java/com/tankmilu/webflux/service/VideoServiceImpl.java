@@ -191,7 +191,8 @@ public class VideoServiceImpl implements VideoService  {
         return ffmpegService.getInitData(filename);
     }
 
-    public InputStreamResource getHlsTs (String filename,String start, String end) throws IOException {
-        return ffmpegService.getTsData(filename,start,end);
+    public InputStreamResource getHlsTs (String filename,String start, String end, String type) throws IOException {
+        log.info(filename + " " + start + " " + end + " " + type);
+        return ffmpegService.getTsData(filename, start, end, type);
     }
 }

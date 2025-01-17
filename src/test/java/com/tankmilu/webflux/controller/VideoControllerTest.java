@@ -42,7 +42,7 @@ class VideoControllerTest {
         String videoName = "video.mp4";
 
         // 1번 헤더 테스트
-        Mono<ResponseEntity<Mono<DataBuffer>>> response1 = videoController.getVideo(videoName, rangeHeader1);
+        Mono<ResponseEntity<Mono<DataBuffer>>> response1 = videoController.getVideoRange(videoName, null, rangeHeader1);
         StepVerifier.create(response1)
                 .assertNext(entity -> {
                     assertNotNull(entity);
@@ -54,7 +54,7 @@ class VideoControllerTest {
                 .verifyComplete();
 
         // 2번 헤더 테스트
-        Mono<ResponseEntity<Mono<DataBuffer>>> response2 = videoController.getVideo(videoName, rangeHeader2);
+        Mono<ResponseEntity<Mono<DataBuffer>>> response2 = videoController.getVideoRange(videoName, null, rangeHeader2);
         StepVerifier.create(response2)
                 .assertNext(entity -> {
                     assertNotNull(entity);
@@ -66,7 +66,7 @@ class VideoControllerTest {
                 .verifyComplete();
 
         // 3번 헤더 테스트
-        Mono<ResponseEntity<Mono<DataBuffer>>> response3 = videoController.getVideo(videoName, rangeHeader3);
+        Mono<ResponseEntity<Mono<DataBuffer>>> response3 = videoController.getVideoRange(videoName, rangeHeader3, null);
         StepVerifier.create(response3)
                 .assertNext(entity -> {
                     assertNotNull(entity);
@@ -78,7 +78,7 @@ class VideoControllerTest {
                 .verifyComplete();
 
         // 4번 헤더 테스트
-        Mono<ResponseEntity<Mono<DataBuffer>>> response4 = videoController.getVideo(videoName, rangeHeader4);
+        Mono<ResponseEntity<Mono<DataBuffer>>> response4 = videoController.getVideoRange(videoName, null, rangeHeader4);
         StepVerifier.create(response4)
                 .assertNext(entity -> {
                     assertNotNull(entity);
@@ -91,7 +91,7 @@ class VideoControllerTest {
 
         // 5번 헤더 테스트
         try {
-            Mono<ResponseEntity<Mono<DataBuffer>>> response5 = videoController.getVideo(videoName, rangeHeader5);
+            Mono<ResponseEntity<Mono<DataBuffer>>> response5 = videoController.getVideoRange(videoName,null, rangeHeader5);
             StepVerifier.create(response5)
                     .assertNext(entity -> {
                         assertNotNull(entity);
