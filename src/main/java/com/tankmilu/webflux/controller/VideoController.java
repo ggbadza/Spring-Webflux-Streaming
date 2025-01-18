@@ -52,7 +52,7 @@ public class VideoController {
                         debug: true, // 디버깅 활성화
                       });
                 
-                      hls.loadSource('http://127.0.0.1:8081/video/hlsm3u8?fn=video.mp4'); // M3U8 URL
+                      hls.loadSource('http://127.0.0.1:8081/video/hlsm3u8master?fn=video.mp4'); // M3U8 URL
                       hls.attachMedia(video);
                 
                       hls.on(Hls.Events.MANIFEST_PARSED, function () {
@@ -64,7 +64,7 @@ public class VideoController {
                         console.error('HLS.js Error:', data);
                       });
                     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                      video.src = 'http://127.0.0.1:8081/video/hlsm3u8?fn=video.mp4';
+                      video.src = 'http://127.0.0.1:8081/video/hlsm3u8master?fn=video.mp4';
                       video.addEventListener('loadedmetadata', function () {
                         video.play();
                       });
@@ -97,8 +97,26 @@ public class VideoController {
 
     @GetMapping("${app.video.urls.hlsm3u8}")
     public Mono<ResponseEntity<String>> getHlsM3U8(
+            @RequestParam String fn,
+            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
+        return Mono.fromCallable(() -> videoService.getHlsM3u8(fn,type)) // 비동기 작업 래핑
+                .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
+                .map(data -> { // m3u8 텍스트를 ResponseEntity에 맵핑
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL;");
+                    return new ResponseEntity<>(data, headers, HttpStatus.OK);
+                })
+                .onErrorResume(e -> { // 에러 처리
+                    HttpHeaders headers = new HttpHeaders();
+                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain;");
+                    return Mono.just(new ResponseEntity<>("IO ERROR", headers, HttpStatus.INTERNAL_SERVER_ERROR));
+                });
+    }
+
+    @GetMapping("${app.video.urls.hlsm3u8master}")
+    public Mono<ResponseEntity<String>> getHlsM3U8Master(
             @RequestParam String fn) throws IOException {
-        return Mono.fromCallable(() -> videoService.getHlsM3u8(fn)) // 비동기 작업 래핑
+        return Mono.fromCallable(() -> videoService.getHlsM3u8Master(fn)) // 비동기 작업 래핑
                 .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
                 .map(data -> { // m3u8 텍스트를 ResponseEntity에 맵핑
                     HttpHeaders headers = new HttpHeaders();

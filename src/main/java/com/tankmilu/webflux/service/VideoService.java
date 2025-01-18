@@ -10,7 +10,9 @@ public interface VideoService {
 
     String getHlsOriginal(String filename) throws IOException;
 
-    String getHlsM3u8(String filename) throws IOException;
+    String getHlsM3u8(String filename,String type) throws IOException;
+
+    String getHlsM3u8Master(String filename) throws IOException;
 
     InputStreamResource getHlsInitData(String filename) throws IOException;
 

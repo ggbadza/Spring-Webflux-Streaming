@@ -3,6 +3,7 @@ package com.tankmilu.webflux.service;
 import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
+import net.bramp.ffmpeg.probe.FFmpegStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
@@ -37,7 +38,16 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         metaData.put("duration", String.valueOf(probeResult.getFormat().duration));
         metaData.put("bitrate", String.valueOf(probeResult.getFormat().bit_rate));
         metaData.put("size", String.valueOf(probeResult.getFormat().size));
-        log.info("ffmpeg probe result: {}", probeResult);
+        // 비디오 해상도 추출
+        FFmpegStream stream = probeResult.getStreams().get(0);
+
+        if (stream != null) {
+            metaData.put("width", String.valueOf(stream.width));
+            metaData.put("height", String.valueOf(stream.height));
+            metaData.put("video_codec", stream.codec_name);
+        }
+
+        log.info("ffmpeg probe result: {}", metaData);
         return metaData;
     }
 
@@ -178,7 +188,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     ffmpegDir,
                     "-ss", start,
                     "-i", videoPath,
-                    "-c:v", "libx265",
+                    "-c:v", "libx264",
                     "-preset", "fast",
                     "-to", to,
                     "-c:a", "aac",
