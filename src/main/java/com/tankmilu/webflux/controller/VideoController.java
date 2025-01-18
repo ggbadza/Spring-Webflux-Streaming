@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 
 
 @RestController
-@RequestMapping("/video")
+@RequestMapping("${app.video.urls.base}")
 @RequiredArgsConstructor
 @Slf4j
 public class VideoController {
@@ -76,7 +76,7 @@ public class VideoController {
     }
 
 
-    @GetMapping("/filerange")
+    @GetMapping("${app.video.urls.filerange}")
     public Mono<ResponseEntity<Mono<DataBuffer>>> getVideoRange(
             @RequestParam String fn,
             @RequestParam(required = false) String bytes,
@@ -95,7 +95,7 @@ public class VideoController {
         );
     }
 
-    @GetMapping("/hlsm3u8")
+    @GetMapping("${app.video.urls.hlsm3u8}")
     public Mono<ResponseEntity<String>> getHlsM3U8(
             @RequestParam String fn) throws IOException {
         return Mono.fromCallable(() -> videoService.getHlsM3u8(fn)) // 비동기 작업 래핑
@@ -112,7 +112,7 @@ public class VideoController {
                 });
     }
 
-    @GetMapping("/hlsinit")
+    @GetMapping("${app.video.urls.hlsinit}")
     public Mono<ResponseEntity<InputStreamResource>> getInitVideo(
             @RequestParam String fn) throws IOException {
         return Mono.fromCallable(() -> videoService.getHlsInitData(fn))
@@ -133,7 +133,7 @@ public class VideoController {
                 });
     }
 
-    @GetMapping("/hlsts")
+    @GetMapping("${app.video.urls.hlsts}")
     public Mono<ResponseEntity<InputStreamResource>> getTsVideo(
             @RequestParam String fn,
             @RequestParam String ss,

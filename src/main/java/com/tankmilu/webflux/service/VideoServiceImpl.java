@@ -3,6 +3,7 @@ package com.tankmilu.webflux.service;
 import com.tankmilu.webflux.record.VideoMonoRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -32,7 +33,11 @@ public class VideoServiceImpl implements VideoService  {
 
     private final FFmpegService ffmpegService;
 
-    private final String videoFileUrl = "http://127.0.0.1:8081/video/filerange";
+    @Value("${app.video.urls.filerange}")
+    public String filerangeUrl;
+
+    @Value("${app.video.urls.hlsts}")
+    public String hlstsUrl;
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader){
         Path videoPath;
@@ -129,7 +134,7 @@ public class VideoServiceImpl implements VideoService  {
         m3u8Builder.append("#EXT-X-TARGETDURATION:20\n"); // 각 세그먼트 최대 길이 지정
 //        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:1\n\n");
         m3u8Builder.append("#EXT-X-PLAYLIST-TYPE:VOD\n");
-        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn="+filename+".init.mp4\n\n");
+        m3u8Builder.append("#EXT-X-MAP:URI="+filerangeUrl+"?fn="+filename+".init.mp4\n\n");
 
         Double prevTime=0.0;
         Double nowTime=0.0;
@@ -141,13 +146,13 @@ public class VideoServiceImpl implements VideoService  {
                 nowBytes=Integer.parseInt(keyFrame.get(2));
                 duration=new BigDecimal(nowTime-prevTime).setScale(2, RoundingMode.CEILING).toPlainString();
                 m3u8Builder.append("#EXTINF:"+duration+",\n");
-                m3u8Builder.append(videoFileUrl+"?fn="+filename+"&bytes="+String.valueOf(prevBytes)+"-"+String.valueOf(nowBytes-1)+"\n");
+                m3u8Builder.append(filerangeUrl+"?fn="+filename+"&bytes="+String.valueOf(prevBytes)+"-"+String.valueOf(nowBytes-1)+"\n");
                 prevTime=nowTime;
                 prevBytes=nowBytes;
             }
         }
         m3u8Builder.append("#EXTINF:10,\n");
-        m3u8Builder.append(videoFileUrl+"?fn="+filename+"&bytes="+String.valueOf(nowBytes)+"-\n");
+        m3u8Builder.append(filerangeUrl+"?fn="+filename+"&bytes="+String.valueOf(nowBytes)+"-\n");
         m3u8Builder.append("\n");
         m3u8Builder.append("#EXT-X-ENDLIST");
 
@@ -171,11 +176,11 @@ public class VideoServiceImpl implements VideoService  {
         while (videoDuration>0){
             if (videoDuration>=10) {
                 m3u8Builder.append("#EXTINF:10,\n");
-                m3u8Builder.append("hlsts?fn="+filename+"&ss="+nowTime+"&to="+(nowTime+10)+"\n");
+                m3u8Builder.append(hlstsUrl+"?fn="+filename+"&ss="+nowTime+"&to="+(nowTime+10)+"\n");
             }
             else {
                 m3u8Builder.append("#EXTINF:"+videoDuration.toString()+"\n");
-                m3u8Builder.append("hlsts?fn="+filename+"&ss="+nowTime+"&to="+(nowTime+videoDuration)+"\n");
+                m3u8Builder.append(hlstsUrl+"?fn="+filename+"&ss="+nowTime+"&to="+(nowTime+videoDuration)+"\n");
             }
             nowTime+=10;
             videoDuration-=10;
