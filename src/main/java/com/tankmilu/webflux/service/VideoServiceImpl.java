@@ -47,6 +47,12 @@ public class VideoServiceImpl implements VideoService {
     @Value("${app.video.urls.hlsm3u8}")
     public String hlsm3u8Url;
 
+    @Value("${app.video.urls.hlsinit}")
+    public String hlsinitUrl;
+
+    @Value("${app.video.urls.hlsfmp4}")
+    public String hlsfmp4Url;
+
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader) {
         Path videoPath;
 
@@ -184,10 +190,42 @@ public class VideoServiceImpl implements VideoService {
         while (videoDuration > 0) {
             if (videoDuration >= 10) {
                 m3u8Builder.append("#EXTINF:10,\n");
-                m3u8Builder.append(hlstsUrl + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + 10) + "&type=" + type + "\n");
+                m3u8Builder.append(videoBaseUrl+hlstsUrl + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + 10) + "&type=" + type + "\n");
             } else {
                 m3u8Builder.append("#EXTINF:" + videoDuration.toString() + "\n");
-                m3u8Builder.append(hlstsUrl + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + videoDuration) + "&type=" + type + "\n");
+                m3u8Builder.append(videoBaseUrl+hlstsUrl + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + videoDuration) + "&type=" + type + "\n");
+            }
+            nowTime += 10;
+            videoDuration -= 10;
+        }
+
+        m3u8Builder.append("\n");
+        m3u8Builder.append("#EXT-X-ENDLIST");
+
+        return m3u8Builder.toString();
+    }
+
+    public String getHlsM3u8Fmp4(String filename, String type) throws IOException {
+        Double videoDuration = ffmpegService.getVideoDuration(filename);
+
+        StringBuilder m3u8Builder = new StringBuilder();
+
+        m3u8Builder.append("#EXTM3U\n");
+        m3u8Builder.append("#EXT-X-VERSION:7\n");
+        m3u8Builder.append("#EXT-X-TARGETDURATION:10\n");
+        m3u8Builder.append("#EXT-X-PLAYLIST-TYPE:VOD\n");
+        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:0\n");
+        m3u8Builder.append("#EXT-X-MAP:URI="+videoBaseUrl+hlsinitUrl+"?fn="+filename+"\n\n");
+//        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn=init2.mp4\n\n");
+
+        int nowTime = 0;
+        while (videoDuration > 0) {
+            if (videoDuration >= 10) {
+                m3u8Builder.append("#EXTINF:10,\n");
+                m3u8Builder.append(videoBaseUrl+hlsfmp4Url + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + 10) + "&type=" + type + "\n");
+            } else {
+                m3u8Builder.append("#EXTINF:" + videoDuration.toString() + "\n");
+                m3u8Builder.append(videoBaseUrl+hlsfmp4Url + "?fn=" + filename + "&ss=" + nowTime + "&to=" + (nowTime + videoDuration) + "&type=" + type + "\n");
             }
             nowTime += 10;
             videoDuration -= 10;
@@ -237,7 +275,12 @@ public class VideoServiceImpl implements VideoService {
     }
 
     public InputStreamResource getHlsTs(String filename, String start, String end, String type) throws IOException {
-        log.info(filename + " " + start + " " + end + " " + type);
+        log.info("filename="+filename+",start="+start+",end="+end+",type="+type);
         return ffmpegService.getTsData(filename, start, end, type);
+    }
+
+    public InputStreamResource getHlsFmp4(String filename, String start, String end, String type) throws IOException {
+        log.info("filename="+filename+",start="+start+",end="+end+",type="+type);
+        return ffmpegService.getFmp4Data(filename, start, end, type);
     }
 }

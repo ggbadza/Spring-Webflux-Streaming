@@ -12,9 +12,13 @@ public interface VideoService {
 
     String getHlsM3u8(String filename,String type) throws IOException;
 
+    String getHlsM3u8Fmp4(String filename,String type) throws IOException;
+
     String getHlsM3u8Master(String filename) throws IOException;
 
     InputStreamResource getHlsInitData(String filename) throws IOException;
 
     InputStreamResource getHlsTs(String filename, String start, String end, String type) throws IOException;
+
+    InputStreamResource getHlsFmp4(String filename, String start, String end, String type) throws IOException;
 }

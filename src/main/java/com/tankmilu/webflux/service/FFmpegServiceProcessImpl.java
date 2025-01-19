@@ -128,17 +128,24 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
             // FFmpeg 명령어 생성
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    ffmpegDir,
-                    "-i", videoPath,
-                    "-an",
-                    "-vn",
-                    "-c:v", "copy",           // 비디오 스트림 복사
-                    "-f", "mp4",
-                    "-movflags", "frag_keyframe+empty_moov+separate_moof",
-//                    "-t", "0",                // 비디오 데이터 제외
-                    "pipe:1"
-            );
+
+            List<String> command = new ArrayList<>(Arrays.asList(
+                    ffmpegDir,                           // ffmpeg 실행 파일 경로
+                    "-i", videoPath,                     // 입력 비디오 파일 경로
+                    "-c:v", "libx264",                   // 비디오 코덱
+                    "-c:a", "aac",                       // 오디오 코덱
+                    "-f", "hls",                         // 출력 형식: HLS
+                    "-hls_time", "10",                   // 세그먼트 길이: 10초
+                    "-t", "0.01",                        // 출력 길이: 0.01초 (초기화 파일만 생성)
+                    "-hls_segment_type", "fmp4",         // 세그먼트 형식: fMP4
+                    "-hls_fmp4_init_filename", "pipe:1", // 초기화 파일을 표준 출력으로 전송
+//                    "-hls_flags", "single_file",         // 단일 파일로 저장
+                    "-hls_playlist_type", "vod",         // VOD 모드 설정
+                    "-hls_segment_filename", "\"NUL %03d.m4s\"",   // 세그먼트를 파이프 출력
+                    "NUL"                                // 플레이리스트 파일 생성 방지
+            ));
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
 
             return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
         } catch (Exception e) {
@@ -178,7 +185,6 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
     public InputStreamResource getTsData(String filename, String start, String to, String type) throws IOException {
         try {
-            log.info("type: {}", type);
             // 비디오 파일 경로
             String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
@@ -212,6 +218,61 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                 command.add(command.indexOf("-c:v") + 2, "-vf");
                 command.add(command.indexOf("-c:v") + 3, "scale=-2:1440");
             }
+
+            log.info("command: {}", command);
+
+            // ProcessBuilder 생성
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+
+            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
+        } catch (Exception e) {
+            log.error("FFmpeg 에러: {}", e.getMessage(), e);
+            throw new IOException("FFmpeg 실행 에러", e);
+        }
+    }
+
+    public InputStreamResource getFmp4Data(String filename, String start, String to, String type) throws IOException {
+        try {
+            // 비디오 파일 경로
+            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+            log.info("Video path: {}", videoPath);
+
+            // FFmpeg 명령어 생성
+            List<String> command = new ArrayList<>(Arrays.asList(
+                    ffmpegDir,
+                    "-ss", start,
+                    "-itsoffset", start,
+                    "-i", videoPath,
+                    "-c:v", "libx264",                   // 비디오 코덱
+                    "-c:a", "aac",                       // 오디오 코덱
+                    "-f", "hls",                         // 출력 형식: HLS
+                    "-hls_time", "20",                   // 세그먼트 길이: 10초
+                    "-hls_segment_type", "fmp4",         // 세그먼트 형식: fMP4
+                    "-to", "10",                          // 종료 시간: 10초 (출력 길이)
+                    "-muxdelay", "0.1",
+//                    "-copyts",
+//                    "-hls_flags", "single_file",         // 단일 파일로 저장
+                    "-hls_fmp4_init_filename", "NUL",
+                    "-hls_playlist_type", "vod",         // VOD 모드 설정
+                    "-reset_timestamps","1",
+                    "-hls_segment_filename", "\"pipe:1_%03d.m4s\"",   // 세그먼트를 파이프 출력
+                    "NUL"                                // 플레이리스트 파일 출력 방지
+            ));
+
+            // 해상도 옵션 동적으로 추가
+//            if (type.equals("1")) {
+//                command.add(command.indexOf("-c:v") + 2, "-vf");
+//                command.add(command.indexOf("-c:v") + 3, "scale=-2:480");
+//            } else if (type.equals("2")) {
+//                command.add(command.indexOf("-c:v") + 2, "-vf");
+//                command.add(command.indexOf("-c:v") + 3, "scale=-2:720");
+//            } else if (type.equals("3")) {
+//                command.add(command.indexOf("-c:v") + 2, "-vf");
+//                command.add(command.indexOf("-c:v") + 3, "scale=-2:1080");
+//            } else if (type.equals("4")) {
+//                command.add(command.indexOf("-c:v") + 2, "-vf");
+//                command.add(command.indexOf("-c:v") + 3, "scale=-2:1440");
+//            }
 
             log.info("command: {}", command);
 
