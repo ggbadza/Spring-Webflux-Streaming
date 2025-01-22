@@ -314,7 +314,7 @@ public class VideoController {
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "application/zip;");
+                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
                 })
                 .onErrorResume(e -> {
@@ -362,7 +362,7 @@ public class VideoController {
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "application/zip;");
+                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
                 })
                 .onErrorResume(e -> {

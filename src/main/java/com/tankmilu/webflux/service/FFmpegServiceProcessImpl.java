@@ -241,12 +241,12 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             List<String> command = new ArrayList<>(Arrays.asList(
                     ffmpegDir,
                     "-ss", start,
-                    "-itsoffset", start,
+//                    "-itsoffset", start,
                     "-i", videoPath,
                     "-c:v", "libx264",                   // 비디오 코덱
                     "-c:a", "aac",                       // 오디오 코덱
                     "-f", "hls",                         // 출력 형식: HLS
-                    "-hls_time", "20",                   // 세그먼트 길이: 10초
+                    "-hls_time", "10",                   // 세그먼트 길이: 10초
                     "-hls_segment_type", "fmp4",         // 세그먼트 형식: fMP4
                     "-to", "10",                          // 종료 시간: 10초 (출력 길이)
                     "-muxdelay", "0.1",
