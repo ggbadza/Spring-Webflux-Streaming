@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 public class JwtProvider {
 
     private final UserRepository userRepository;
+
     @Value("${jwt.secretKey}")
     @Getter
     private String secretKey;
