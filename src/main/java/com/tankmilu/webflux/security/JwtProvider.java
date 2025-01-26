@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
 import java.util.stream.Collectors;
@@ -45,7 +46,8 @@ public class JwtProvider {
 
     @PostConstruct // 의존관계 주입 시 자동 실행
     public void init() {
-        this.secretKeyHmac = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        byte[] decodedKey = Base64.getDecoder().decode(secretKey);
+        this.secretKeyHmac = Keys.hmacShaKeyFor(decodedKey);
     }
 
     public Mono<String> createToken(Authentication authentication) {

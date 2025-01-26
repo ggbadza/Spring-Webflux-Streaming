@@ -38,3 +38,5 @@ out/
 
 ### setting ###
 application.properties
+
+/db/

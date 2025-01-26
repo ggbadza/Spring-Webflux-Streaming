@@ -35,7 +35,8 @@ public class SecurityConfig {
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .addFilterAt(authenticationWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/video/test").permitAll()   // 공개된 주소
+//                        .pathMatchers("/video/test").permitAll()   // 공개된 주소
+//                        .pathMatchers("/h2-console").permitAll()   // 공개된 주소
                         .anyExchange().authenticated()
                 )
                 .build();
