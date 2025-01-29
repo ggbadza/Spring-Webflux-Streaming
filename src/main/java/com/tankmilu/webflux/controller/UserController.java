@@ -31,13 +31,7 @@ public class UserController {
                         )
                         .flatMap(authentication ->
                                 jwtProvider.createToken(authentication)
-                                        .flatMap(accessToken -> {
-                                            String refreshToken = jwtProvider.createRefreshToken(authentication.getName());
-                                            return Mono.just(ResponseEntity.ok(new JwtResponseRecord(
-                                                    accessToken,
-                                                    refreshToken
-                                            )));
-                                        })
+                                        .map(ResponseEntity::ok)
                         )
         );
     }
