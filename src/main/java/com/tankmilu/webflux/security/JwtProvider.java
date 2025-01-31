@@ -3,6 +3,7 @@ package com.tankmilu.webflux.security;
 
 import com.tankmilu.webflux.entity.JwtRefreshTokenEntity;
 import com.tankmilu.webflux.record.JwtResponseRecord;
+import com.tankmilu.webflux.record.UserAuthRecord;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -38,7 +39,6 @@ public class JwtProvider {
     private final JwtRefreshTokenRepository jwtRefreshTokenRepository;
 
     @Value("${jwt.secretKey}")
-    @Getter
     private String secretKey;
 
     @Value("${jwt.access.expiration}")
@@ -47,6 +47,7 @@ public class JwtProvider {
     @Value("${jwt.refresh.expiration}")
     private Long refreshTokenExpirationPeriod;
 
+    @Getter
     private SecretKey secretKeyHmac;
 
     @PostConstruct // 의존관계 주입 시 자동 실행
@@ -95,7 +96,7 @@ public class JwtProvider {
                             .build();
 
                     // 리프레시 토큰 발급
-                    return jwtRefreshTokenRepository.save(jwtRefreshTokenEntity).zipWhen(saved -> Mono.just(Tuples.of(accessToken, sessionCode, createdDate, refreshExpirationDate)));;})
+                    return jwtRefreshTokenRepository.save(jwtRefreshTokenEntity).zipWhen(saved -> Mono.just(Tuples.of(accessToken, sessionCode, createdDate, refreshExpirationDate)));})
                 .map(tuple2 -> {
                     Tuple4<String, String, Date, Date> data = tuple2.getT2();
                     String accessToken = data.getT1();
@@ -110,22 +111,46 @@ public class JwtProvider {
                                     .setExpiration(refreshExpirationDate)
                                     .signWith(secretKeyHmac)
                                     .compact();
-                    return new JwtResponseRecord(accessToken,refreshToken);
+                    return new JwtResponseRecord(accessToken,refreshToken,createdDate,null,refreshExpirationDate);
                 });
     }
 
-    public String createRefreshToken(String username) {
-        final Date createdDate = new Date();
-        final Date expirationDate = new Date(createdDate.getTime() + refreshTokenExpirationPeriod);
+    public JwtResponseRecord createAccessToken(UserAuthRecord userAuthRecord) {
 
-        return Jwts.builder()
-                .setSubject(username)
+        final Date createdDate = new Date();
+        final Date accessExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
+
+        Claims claims = Jwts.claims().setSubject(userAuthRecord.userId()).build();
+        claims.put("roles", userAuthRecord.roles());
+        claims.put("subscriptionPlan", userAuthRecord.subscriptionPlan());
+
+        String accessToken=Jwts.builder()
+                .setClaims(claims)
                 .setIssuedAt(createdDate)
-                .setExpiration(expirationDate)
+                .setExpiration(accessExpirationDate)
                 .signWith(secretKeyHmac)
                 .compact();
+
+        return new JwtResponseRecord(accessToken,null,createdDate,accessExpirationDate,null);
     }
 
+    public JwtResponseRecord createRefreshToken(UserAuthRecord userAuthRecord) {
 
+        final Date createdDate = new Date();
+        final Date refreshExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
+
+
+        String refreshToken=Jwts.builder()
+                .subject(userAuthRecord.userId())
+                .claims()
+                .add("sessionCode", userAuthRecord.sessionCode()) // 세션 코드 추가
+                .issuedAt(createdDate)
+                .expiration(refreshExpirationDate)
+                .and() // 클레임 설정 종료
+                .signWith(secretKeyHmac)
+                .compact();
+
+        return new JwtResponseRecord(null,refreshToken,createdDate,null,refreshExpirationDate);
+    }
 
 }
