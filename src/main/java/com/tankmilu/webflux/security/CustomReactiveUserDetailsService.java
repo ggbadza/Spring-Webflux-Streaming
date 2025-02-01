@@ -21,7 +21,7 @@ public class CustomReactiveUserDetailsService implements ReactiveUserDetailsServ
         // 데이터베이스에서 사용자 조회
         return userRepository.findByUserId(username)
                 .map(user -> new CustomUserDetails(
-                        user.getUsername(),
+                        user.getUserName(),
                         user.getPassword(),
                         user.getAuthorities().stream()
                                 .map(SimpleGrantedAuthority::new)

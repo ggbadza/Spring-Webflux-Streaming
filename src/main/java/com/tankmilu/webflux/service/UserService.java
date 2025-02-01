@@ -1,25 +1,24 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.JwtRefreshTokenEntity;
+import com.tankmilu.webflux.entity.UserEntity;
 import com.tankmilu.webflux.record.JwtResponseRecord;
 import com.tankmilu.webflux.record.UserAuthRecord;
+import com.tankmilu.webflux.record.UserRegRequests;
+import com.tankmilu.webflux.record.UserRegResponse;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
 import com.tankmilu.webflux.security.JwtProvider;
 import com.tankmilu.webflux.security.JwtValidator;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuple4;
-import reactor.util.function.Tuples;
 
 import java.util.Collection;
-import java.util.Date;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -34,6 +33,8 @@ public class UserService {
     private final JwtProvider jwtProvider;
 
     private final JwtValidator jwtValidator;
+
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public Mono<JwtResponseRecord> createToken(Authentication authentication) {
@@ -123,6 +124,31 @@ public class UserService {
                         })
                 )
                 .onErrorResume(e -> Mono.error(new RuntimeException("토큰 재발급 실패: " + e.getMessage())));
+    }
+
+    @Transactional
+    public Mono<UserRegResponse> register(UserRegRequests userRegRequests) {
+        return userRepository.findByUserId(userRegRequests.userId())
+                // 이미 존재하는 사용자라면 에러 반환
+                .flatMap(existingUser -> Mono.<UserEntity>error(new RuntimeException("동일한 ID가 존재합니다.")))
+                // 사용자가 존재하지 않으면, 새 사용자 생성
+                .switchIfEmpty(Mono.defer(() -> {
+                    UserEntity newUser = UserEntity.builder()
+                            .userId(userRegRequests.userId())
+                            // 평문 비밀번호를 BCryptPasswordEncoder 등을 통해 해싱
+                            .password(passwordEncoder.encode(userRegRequests.password()))
+                            .userName(userRegRequests.userName())
+                            .subscriptionPlan(userRegRequests.subscriptionPlan())
+                            .isNewRecord(true)
+                            .build();
+                    return userRepository.save(newUser);
+                }))
+                .map(savedUser -> new UserRegResponse(
+                        savedUser.getUserId(),
+                        savedUser.getUserName(),
+                        savedUser.getSubscriptionPlan(),
+                        "회원가입에 성공하였습니다.")
+                );
     }
 
 }

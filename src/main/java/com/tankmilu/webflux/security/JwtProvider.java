@@ -56,65 +56,6 @@ public class JwtProvider {
         this.secretKeyHmac = Keys.hmacShaKeyFor(decodedKey);
     }
 
-    @Transactional
-    public Mono<JwtResponseRecord> createToken(Authentication authentication) {
-        String userId = authentication.getName();
-        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-
-        // DB에서 사용자 플랜 조회
-        return userRepository.findByUserId(userId)
-                .flatMap(user -> {
-                    String subscriptionPlan = user.getSubscriptionPlan();
-
-                    Claims claims = Jwts.claims().setSubject(userId).build();
-                    claims.put("roles", authorities.stream()
-                            .map(GrantedAuthority::getAuthority)
-                            .collect(Collectors.toList()));
-                    claims.put("subscriptionPlan", subscriptionPlan);
-
-                    final Date createdDate = new Date();
-                    final Date accessExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
-                    final Date refreshExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
-                    String accessToken =
-                            Jwts.builder()
-                            .setClaims(claims)
-                            .setSubject(userId)
-                            .setIssuedAt(createdDate)
-                            .setExpiration(accessExpirationDate)
-                            .signWith(secretKeyHmac)
-                            .compact();
-                    // 무작위 세션코드 생성
-                    String sessionCode = UUID.randomUUID().toString();
-                    // 리프레시 토큰 엔티티 생성
-                    JwtRefreshTokenEntity jwtRefreshTokenEntity =
-                            JwtRefreshTokenEntity
-                            .builder()
-                            .sessionCode(sessionCode)
-                            .userId(userId)
-                            .issuedAt(createdDate)
-                            .expiredAt(refreshExpirationDate)
-                            .build();
-
-                    // 리프레시 토큰 발급
-                    return jwtRefreshTokenRepository.save(jwtRefreshTokenEntity).zipWhen(saved -> Mono.just(Tuples.of(accessToken, sessionCode, createdDate, refreshExpirationDate)));})
-                .map(tuple2 -> {
-                    Tuple4<String, String, Date, Date> data = tuple2.getT2();
-                    String accessToken = data.getT1();
-                    String sessionCode = data.getT2();
-                    Date createdDate = data.getT3();
-                    Date refreshExpirationDate = data.getT4();
-
-                    String refreshToken =
-                            Jwts.builder()
-                                    .setSubject(sessionCode)
-                                    .setIssuedAt(createdDate)
-                                    .setExpiration(refreshExpirationDate)
-                                    .signWith(secretKeyHmac)
-                                    .compact();
-                    return new JwtResponseRecord(accessToken,refreshToken,createdDate,null,refreshExpirationDate);
-                });
-    }
-
     public JwtResponseRecord createAccessToken(UserAuthRecord userAuthRecord) {
 
         final Date createdDate = new Date();

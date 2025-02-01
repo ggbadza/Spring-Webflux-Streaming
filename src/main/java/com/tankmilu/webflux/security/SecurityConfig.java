@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -10,10 +11,11 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter;
 import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
-import org.springframework.security.web.server.authentication.ServerAuthenticationEntryPointFailureHandler;
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
@@ -29,6 +31,9 @@ public class SecurityConfig {
 
     private final ReactiveUserDetailsService userDetailsService;
 
+    @Value("${app.user.urls.base}")
+    private String userUrl;
+
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) throws Exception { // 웹플럭스 기반 필터체인 클래스
         return http
@@ -42,7 +47,8 @@ public class SecurityConfig {
                 .addFilterAt(authenticationWebFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
                 .authorizeExchange(exchange -> exchange
 //                        .pathMatchers("/video/test").permitAll()   // 공개된 주소
-//                        .pathMatchers("/h2-console").permitAll()   // 공개된 주소
+//                        .pathMatchers("/h2-console").permitAll()
+                        .pathMatchers(userUrl+"/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .build();
@@ -57,7 +63,10 @@ public class SecurityConfig {
 
     @Bean
     public ReactiveAuthenticationManager authenticationManager() {
-        return new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
+        UserDetailsRepositoryReactiveAuthenticationManager authManager =
+                new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
+        authManager.setPasswordEncoder(this.passwordEncoder());
+        return authManager;
     }
 
 
@@ -71,5 +80,10 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
     }
 }
