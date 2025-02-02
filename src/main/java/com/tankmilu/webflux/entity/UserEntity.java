@@ -13,7 +13,6 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.LocalDateTime;
 import java.util.List;
 
-@Builder
 @Table()
 public class UserEntity implements Persistable<String> {
 
@@ -43,6 +42,20 @@ public class UserEntity implements Persistable<String> {
     // R2DBC에서 신규 엔티티는 Insert 수행하도록 하는 속성 값
     @Transient
     private boolean isNewRecord;
+
+    // DB에서 엔티티 받아 올 경우
+    public UserEntity() {
+        this.isNewRecord = false;
+    }
+
+    @Builder
+    public UserEntity(String userId, String userName, String password, String subscriptionPlan) {
+        this.userId = userId;
+        this.userName = userName;
+        this.password = password;
+        this.subscriptionPlan = subscriptionPlan;
+        this.isNewRecord = true; // 새로 생성하는 경우
+    }
 
     public List<String> getAuthorities() {
         // 권한 리스트 반환 (예: ROLE_USER, ROLE_ADMIN 등)

@@ -23,6 +23,9 @@ import reactor.util.function.Tuple4;
 import reactor.util.function.Tuples;
 
 import javax.crypto.SecretKey;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
@@ -58,35 +61,35 @@ public class JwtProvider {
 
     public JwtResponseRecord createAccessToken(UserAuthRecord userAuthRecord) {
 
-        final Date createdDate = new Date();
-        final Date accessExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
-
-        Claims claims = Jwts.claims().setSubject(userAuthRecord.userId()).build();
-        claims.put("roles", userAuthRecord.roles());
-        claims.put("subscriptionPlan", userAuthRecord.subscriptionPlan());
+        LocalDateTime createdDate = LocalDateTime.now();
+        LocalDateTime accessExpirationDate = createdDate.plus(accessTokenExpirationPeriod, ChronoUnit.MILLIS);
 
         String accessToken=Jwts.builder()
-                .setClaims(claims)
-                .setIssuedAt(createdDate)
-                .setExpiration(accessExpirationDate)
+                .subject(userAuthRecord.userId())
+                .claim("roles", userAuthRecord.roles())
+                .claim("subscriptionPlan", userAuthRecord.subscriptionPlan())
+                .claim("nonce", UUID.randomUUID().toString())
+                .issuedAt(Date.from(createdDate.atZone(ZoneId.systemDefault()).toInstant()))
+                .expiration(Date.from(accessExpirationDate.atZone(ZoneId.systemDefault()).toInstant()))
                 .signWith(secretKeyHmac)
                 .compact();
+
 
         return new JwtResponseRecord(accessToken,null,createdDate,accessExpirationDate,null);
     }
 
     public JwtResponseRecord createRefreshToken(UserAuthRecord userAuthRecord) {
 
-        final Date createdDate = new Date();
-        final Date refreshExpirationDate = new Date(createdDate.getTime() + accessTokenExpirationPeriod);
 
+        LocalDateTime createdDate = LocalDateTime.now();
+        LocalDateTime refreshExpirationDate = createdDate.plus(accessTokenExpirationPeriod, ChronoUnit.MILLIS);
 
         String refreshToken=Jwts.builder()
                 .subject(userAuthRecord.userId())
                 .claims()
                 .add("sessionCode", userAuthRecord.sessionCode()) // 세션 코드 추가
-                .issuedAt(createdDate)
-                .expiration(refreshExpirationDate)
+                .issuedAt(Date.from(createdDate.atZone(ZoneId.systemDefault()).toInstant()))
+                .expiration(Date.from(refreshExpirationDate.atZone(ZoneId.systemDefault()).toInstant()))
                 .and() // 클레임 설정 종료
                 .signWith(secretKeyHmac)
                 .compact();

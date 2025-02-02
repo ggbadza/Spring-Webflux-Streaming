@@ -44,9 +44,6 @@ public class UserService {
         // DB에서 사용자 플랜 조회
         return userRepository.findByUserId(userId)
                 .flatMap(user -> {
-
-                    String subscriptionPlan = user.getSubscriptionPlan();
-
                     UserAuthRecord userAuthRecord = new UserAuthRecord(
                             userId,
                             authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
@@ -99,7 +96,7 @@ public class UserService {
                                     userId,
                                     authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
                                     user.getSubscriptionPlan(),
-                                    UUID.randomUUID().toString());
+                                    newSessionCode);
 
                             // 새로운 Access, Refresh 토큰 생성
                             JwtResponseRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
@@ -139,7 +136,6 @@ public class UserService {
                             .password(passwordEncoder.encode(userRegRequests.password()))
                             .userName(userRegRequests.userName())
                             .subscriptionPlan(userRegRequests.subscriptionPlan())
-                            .isNewRecord(true)
                             .build();
                     return userRepository.save(newUser);
                 }))
