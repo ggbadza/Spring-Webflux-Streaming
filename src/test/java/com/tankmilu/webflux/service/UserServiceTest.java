@@ -7,6 +7,7 @@ import com.tankmilu.webflux.record.UserRegRequests;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
 import com.tankmilu.webflux.security.JwtValidator;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,13 +18,20 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class UserServiceTest {
+
+    @Autowired
+    private TransactionalOperator transactionalOperator;
 
     @Autowired
     private UserService userService;
@@ -42,20 +50,24 @@ class UserServiceTest {
     @Autowired
     private ReactiveAuthenticationManager authenticationManager;
 
-    @BeforeEach
-    void setUp() {
-        // 각 테스트 전 데이터 초기화
-        userRepository.deleteAll().block();
-        jwtRefreshTokenRepository.deleteAll().block();
-    }
+//    @BeforeEach
+//    void setUp() {
+//        transactionalOperator.execute(status ->
+//                userRepository.deleteAll()
+//                        .then(jwtRefreshTokenRepository.deleteAll())
+//        ).blockLast();
+//    }
+
 
     @Test
     void registerTest_IdExists() {
-        UserRegRequests request = new UserRegRequests("existingUser", "password", "userName", "test");
-        userService.register(request).block(); // 기존 사용자 등록
+        transactionalOperator.execute(status -> {
+                    UserRegRequests request = new UserRegRequests("existingUser", "userName", "password", "test");
 
-        // 실행 & 검증
-        StepVerifier.create(userService.register(request))
+                    return userService.register(request)
+                            .then(userService.register(request)); // 중복 등록 시도
+                })
+                .as(StepVerifier::create)
                 .expectErrorMatches(throwable -> throwable instanceof RuntimeException &&
                         throwable.getMessage().equals("동일한 ID가 존재합니다."))
                 .verify();
@@ -63,16 +75,28 @@ class UserServiceTest {
 
     @Test
     void registerTest_IdNotExists() {
-        UserRegRequests request = new UserRegRequests("newUser", "password", "userName", "test");
+        UserRegRequests request = new UserRegRequests("newUser", "userName", "password", "test");
 
-        // 실행 & 검증
-        StepVerifier.create(userService.register(request))
-                .assertNext(response -> {
-                    assertEquals(request.userId(), response.userId());
-                    assertEquals(request.userName(), response.userName());
-                    assertEquals(request.subscriptionPlan(), response.subscriptionPlan());
-                    assertEquals("회원가입에 성공하였습니다.", response.msg());
-                })
+        StepVerifier.create(
+                transactionalOperator.execute(status ->
+                        userService.register(request)
+                                .doOnNext(response -> {
+                                    assertEquals(request.userId(), response.userId());
+                                    assertEquals(request.userName(), response.userName());
+                                    assertEquals(request.subscriptionPlan(), response.subscriptionPlan());
+                                    assertEquals("회원가입에 성공하였습니다.", response.msg());
+
+                                    // 트랜잭션 롤백 적용
+                                    status.setRollbackOnly();
+                                })
+                                // 롤백 적용 후 트랜잭션을 중단
+                                .then(Mono.empty())
+                )
+        ).verifyComplete();
+
+        // 트랜잭션 롤백 확인 (데이터가 없어야 함)
+        StepVerifier.create(userRepository.findById("newUser"))
+                .expectNextCount(0) // 🔥 데이터가 없어야 성공
                 .verifyComplete();
     }
 
@@ -80,23 +104,44 @@ class UserServiceTest {
     void createTokenTest_WithValidAuthentication() {
         String userId = "testUser";
         String password = "password";
-        UserEntity user = UserEntity.builder()
-                .userId(userId)
-                .password(passwordEncoder.encode(password))
-                .userName("Test User")
-                .subscriptionPlan("test")
-                .build();
-        userRepository.save(user).block();
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(userId, password);
+        // 비동기 과정 중에 토큰값 저장
+        AtomicReference<String> refreshTokenRef = new AtomicReference<>();
 
-        StepVerifier.create(userService.createToken(authentication))
-                .assertNext(jwtResponse -> {
-                    assertNotNull(jwtResponse.accessToken());
-                    assertNotNull(jwtResponse.refreshToken());
-                    assertTrue(jwtResponse.accessExpirationDate().isAfter(jwtResponse.createdDate()));
-                    assertTrue(jwtResponse.refreshExpirationDate().isAfter(jwtResponse.createdDate()));
-                })
+        StepVerifier.create(
+                transactionalOperator.execute(status ->
+                        Mono.defer(() -> {
+                                    UserEntity user = UserEntity.builder()
+                                            .userId(userId)
+                                            .password(passwordEncoder.encode(password))
+                                            .userName("Test User")
+                                            .subscriptionPlan("test")
+                                            .build();
+                                    return userRepository.save(user)
+                                            .then(userService.createToken(new UsernamePasswordAuthenticationToken(userId, password)));
+                                })
+                                .doOnNext(jwtResponse -> {
+                                    assertNotNull(jwtResponse.accessToken());
+                                    assertNotNull(jwtResponse.refreshToken());
+                                    assertTrue(jwtResponse.accessExpirationDate().isAfter(jwtResponse.createdDate()));
+                                    assertTrue(jwtResponse.refreshExpirationDate().isAfter(jwtResponse.createdDate()));
+
+                                    // refreshToken 값을 저장
+                                    refreshTokenRef.set(jwtValidator.extractSessionCode(jwtResponse.refreshToken()));
+
+                                    status.setRollbackOnly();
+                                })
+                                .then(Mono.empty())
+                )
+        ).verifyComplete();
+
+        // 트랜잭션 롤백 확인 (데이터가 없어야 함)
+        StepVerifier.create(userRepository.findById("testUser"))
+                .expectNextCount(0)
+                .verifyComplete();
+
+        StepVerifier.create(jwtRefreshTokenRepository.findById(refreshTokenRef.get()))
+                .expectNextCount(0)
                 .verifyComplete();
     }
 
@@ -105,22 +150,39 @@ class UserServiceTest {
         String userId = "testUser";
         String correctPassword  = "password1";
         String wrongPassword = "password2";
-        UserEntity user = UserEntity.builder()
-                .userId(userId)
-                .password(passwordEncoder.encode(correctPassword))
-                .userName("Test User")
-                .subscriptionPlan("test")
-                .build();
-        userRepository.save(user).block();
 
-        // 잘못된 패스워드로 인증 시도
-        Authentication authentication = new UsernamePasswordAuthenticationToken(userId, wrongPassword);
-
-        StepVerifier.create(authenticationManager.authenticate(authentication))
-                .expectErrorMatches(throwable -> throwable instanceof BadCredentialsException)
+        StepVerifier.create(
+                        transactionalOperator.execute(status ->
+                                Mono.defer(() -> {
+                                            UserEntity user = UserEntity.builder()
+                                                    .userId(userId)
+                                                    .password(passwordEncoder.encode(correctPassword))
+                                                    .userName("Test User")
+                                                    .subscriptionPlan("test")
+                                                    .build();
+                                            return userRepository.save(user);
+                                        })
+                                        .then(Mono.defer(() -> {
+                                            // 잘못된 패스워드로 인증 시도
+                                            Authentication authentication = new UsernamePasswordAuthenticationToken(userId, wrongPassword);
+                                            return authenticationManager.authenticate(authentication);
+                                        }))
+                                        .doOnError(throwable -> {
+                                            // 인증 실패로 인해 BadCredentialsException 발생 예상
+                                            assertTrue(throwable instanceof BadCredentialsException);
+                                            // 트랜잭션 롤백 설정
+                                            status.setRollbackOnly();
+                                        })
+                        )
+                ).expectErrorMatches(throwable -> throwable instanceof BadCredentialsException)
                 .verify();
 
+        // 트랜잭션 롤백 확인
+        StepVerifier.create(userRepository.findById(userId))
+                .expectNextCount(0)
+                .verifyComplete();
     }
+
 
     @Test
     void accessTokenReissueTest_WithValidAuthentication() {
@@ -133,40 +195,75 @@ class UserServiceTest {
                 .userName("Test User")
                 .subscriptionPlan("test")
                 .build();
-        userRepository.save(user).block();
 
-        Authentication authentication = new UsernamePasswordAuthenticationToken(userId, password);
+        AtomicReference<String> oldRefreshTokenRef = new AtomicReference<>();
+        AtomicReference<String> newRefreshTokenRef = new AtomicReference<>();
 
-        // 기존 토큰 검증
-        JwtResponseRecord originalTokens = userService.createToken(authentication).block();
-        assertNotNull(originalTokens);
-
-        // 신규 토큰 발행 및 검증
         StepVerifier.create(
-                        userService.accessTokenReissue(authentication, originalTokens)
-                                .flatMap(newTokens -> {
-                                    // 기존 토큰과 다름 검증
-                                    assertNotEquals(originalTokens.accessToken(), newTokens.accessToken());
-                                    assertNotEquals(originalTokens.refreshToken(), newTokens.refreshToken());
+                transactionalOperator.execute(status ->
+                        userRepository.save(user)
+                                .then(Mono.defer(() -> {
+                                    Authentication authentication = new UsernamePasswordAuthenticationToken(userId, password);
 
-                                    // DB에 조회 요청
-                                    String newSessionCode = jwtValidator.extractSessionCode(newTokens.refreshToken());
-                                    return jwtRefreshTokenRepository.findById(newSessionCode)
-                                            .doOnNext(tokenEntity -> {
-                                                assertNotNull(tokenEntity);
-                                                assertEquals(newSessionCode, tokenEntity.getId());
+                                    // 기존 토큰 생성 및 저장
+                                    return userService.createToken(authentication)
+                                            .flatMap(originalTokens -> {
+                                                assertNotNull(originalTokens);
+
+                                                // 기존 refresh 토큰 저장
+                                                oldRefreshTokenRef.set(originalTokens.refreshToken());
+
+                                                // 신규 토큰 발행 및 검증
+                                                return userService.accessTokenReissue(authentication, originalTokens)
+                                                        .flatMap(newTokens -> {
+                                                            assertNotNull(newTokens);
+
+                                                            // 새로운 refresh 토큰 저장
+                                                            newRefreshTokenRef.set(newTokens.refreshToken());
+
+                                                            // 기존 토큰과 다른지 검증
+                                                            assertNotEquals(originalTokens.accessToken(), newTokens.accessToken());
+                                                            assertNotEquals(originalTokens.refreshToken(), newTokens.refreshToken());
+
+                                                            // DB에 새로운 refresh 토큰이 저장되었는지 확인
+                                                            String newSessionCode = jwtValidator.extractSessionCode(newTokens.refreshToken());
+                                                            return jwtRefreshTokenRepository.findById(newSessionCode)
+                                                                    .doOnNext(tokenEntity -> {
+                                                                        assertNotNull(tokenEntity);
+                                                                        assertEquals(newSessionCode, tokenEntity.getId());
+                                                                    })
+                                                                    .thenReturn(newTokens);
+                                                        })
+                                                        // 기존 refresh 토큰이 삭제되었는지 확인
+                                                        .flatMap(newTokens -> {
+                                                            String oldSessionCode = jwtValidator.extractSessionCode(oldRefreshTokenRef.get());
+                                                            return jwtRefreshTokenRepository.findById(oldSessionCode)
+                                                                    .doOnNext(entity -> fail("기존 토큰이 삭제되지 않고 남아있습니다. : " + entity))
+                                                                    .then();
+                                                        });
                                             });
+                                }))
+                                .doOnSuccess(unused -> {
+                                    status.setRollbackOnly();
                                 })
-                                // 기존 refresh 토큰이 삭제되었는지 확인
-                                .flatMap(newTokens -> {
-                                    String oldSessionCode = jwtValidator.extractSessionCode(originalTokens.refreshToken());
-                                    return jwtRefreshTokenRepository.findById(oldSessionCode)
-                                            // 만약 레코드가 남아있다면 실패해야 하므로:
-                                            .doOnNext(entity -> fail("기존 토큰이 삭제되지 않고 남아있습니다. : " + entity));
-                                })
+                                .then(Mono.empty())
                 )
+        ).verifyComplete();
+
+        // 트랜잭션 롤백 확인
+        StepVerifier.create(userRepository.findById(userId))
+                .expectNextCount(0) // 🔥 데이터가 없어야 성공
+                .verifyComplete();
+
+        StepVerifier.create(jwtRefreshTokenRepository.findById(jwtValidator.extractSessionCode(newRefreshTokenRef.get())))
+                .expectNextCount(0) // 🔥 데이터가 없어야 성공 (롤백되었으므로 없음)
+                .verifyComplete();
+
+        StepVerifier.create(jwtRefreshTokenRepository.findById(jwtValidator.extractSessionCode(oldRefreshTokenRef.get())))
+                .expectNextCount(0) // 🔥 데이터가 없어야 성공 (롤백되었으므로 없음)
                 .verifyComplete();
     }
+
 
 
 

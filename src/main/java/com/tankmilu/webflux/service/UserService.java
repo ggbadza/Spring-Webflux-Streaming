@@ -36,7 +36,6 @@ public class UserService {
 
     private final PasswordEncoder passwordEncoder;
 
-    @Transactional
     public Mono<JwtResponseRecord> createToken(Authentication authentication) {
         String userId = authentication.getName();
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
