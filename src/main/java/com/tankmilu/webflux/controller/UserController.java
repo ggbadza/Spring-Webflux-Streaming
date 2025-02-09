@@ -7,9 +7,11 @@ import com.tankmilu.webflux.record.UserRegResponse;
 import com.tankmilu.webflux.security.JwtProvider;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +40,11 @@ public class UserController {
                                 userService.createToken(authentication)
                                         .map(ResponseEntity::ok)
                         )
+                        .onErrorResume(e -> {
+                            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                    .body(new JwtResponseRecord(null,null,null,null,null)));
+
+                        })
         );
     }
 

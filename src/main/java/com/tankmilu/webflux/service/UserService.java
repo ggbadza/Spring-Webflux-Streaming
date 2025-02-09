@@ -13,12 +13,15 @@ import com.tankmilu.webflux.security.JwtValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
+import reactor.util.function.Tuples;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -36,91 +39,129 @@ public class UserService {
 
     private final PasswordEncoder passwordEncoder;
 
+    @Transactional
     public Mono<JwtResponseRecord> createToken(Authentication authentication) {
         String userId = authentication.getName();
-        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        // 권한 목록 추출
+        List<String> roles = authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
 
-        // DB에서 사용자 플랜 조회
         return userRepository.findByUserId(userId)
-                .flatMap(user -> {
+                .switchIfEmpty(Mono.error(new UsernameNotFoundException("사용자가 존재하지 않습니다.")))
+                // 유저 정보를 UserAuthRecord로 변환 후 토큰 생성
+                .map(user ->  {
+
                     UserAuthRecord userAuthRecord = new UserAuthRecord(
                             userId,
-                            authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
+                            roles,
                             user.getSubscriptionPlan(),
                             UUID.randomUUID().toString());
+                    JwtResponseRecord accessToken = jwtProvider.createAccessToken(userAuthRecord);
+                    JwtResponseRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    return Tuples.of(userAuthRecord, accessToken, refreshToken);
+                })
+                // Refresh 토큰 엔티티 생성, 다시 튜플로 묶어서 리턴
+                .flatMap(tuple -> {
+                    UserAuthRecord userAuthRecord = tuple.getT1();
+                    JwtResponseRecord accessToken = tuple.getT2();
+                    JwtResponseRecord refreshToken = tuple.getT3();
 
-                    // Access 토큰 발행
-                    JwtResponseRecord accessTokenRecord=jwtProvider.createAccessToken(userAuthRecord);
-                    // Refresh 토큰 발행
-                    JwtResponseRecord refreshTokenRecord=jwtProvider.createRefreshToken(userAuthRecord);
-                    // Refresh 토큰 엔티티 생성
-                    JwtRefreshTokenEntity jwtRefreshTokenEntity =
-                            JwtRefreshTokenEntity
-                                    .builder()
-                                    .sessionCode(userAuthRecord.sessionCode())
-                                    .userId(userId)
-                                    .issuedAt(refreshTokenRecord.createdDate())
-                                    .expiredAt(refreshTokenRecord.refreshExpirationDate())
-                                    .build();
+                    JwtRefreshTokenEntity entity = JwtRefreshTokenEntity.builder()
+                            .sessionCode(userAuthRecord.sessionCode())
+                            .userId(userAuthRecord.userId())
+                            .issuedAt(refreshToken.createdDate())
+                            .expiredAt(refreshToken.refreshExpirationDate())
+                            .build();
 
+                    return Mono.just(Tuples.of(accessToken, refreshToken, entity));
+                })
+                // 리프레시 토큰 엔티티 DB 저장
+                .flatMap(tuple -> {
+                    JwtResponseRecord accessToken = tuple.getT1();
+                    JwtResponseRecord refreshToken = tuple.getT2();
+                    JwtRefreshTokenEntity entity = tuple.getT3();
 
-                    // 리프레시 토큰 저장
-                    return jwtRefreshTokenRepository.save(jwtRefreshTokenEntity)
+                    return jwtRefreshTokenRepository.save(entity)
                             .map(saved -> new JwtResponseRecord(
-                                    accessTokenRecord.accessToken(),
-                                    refreshTokenRecord.refreshToken(),
-                                    accessTokenRecord.createdDate(),
-                                    accessTokenRecord.accessExpirationDate(),
-                                    refreshTokenRecord.refreshExpirationDate()
+                                    accessToken.accessToken(),
+                                    refreshToken.refreshToken(),
+                                    accessToken.createdDate(),
+                                    accessToken.accessExpirationDate(),
+                                    refreshToken.refreshExpirationDate()
                             ));
-                });
+                })
+                // 에러 발생 시 메시지 변환
+                .onErrorResume(e -> Mono.error(new Exception("리프레시 토큰 발급에 실패하였습니다.", e)));
     }
 
+
+
+
     @Transactional
-    public Mono<JwtResponseRecord> accessTokenReissue(Authentication authentication, JwtResponseRecord jwtResponseRecord) {
+    public Mono<JwtResponseRecord> accessTokenReissue(Authentication authentication,
+                                                      JwtResponseRecord jwtResponseRecord) {
+        // RefreshToken 검사
         if (!jwtValidator.validateToken(jwtResponseRecord.refreshToken())) {
-            throw new RuntimeException("RefreshToken 이 유효하지 않습니다.");
+            return Mono.error(new RuntimeException("RefreshToken 이 유효하지 않습니다."));
         }
+        // 토큰에서 사용자 정보 추출
         String userId = jwtValidator.extractUserId(jwtResponseRecord.refreshToken());
         String sessionCode = jwtValidator.extractSessionCode(jwtResponseRecord.refreshToken());
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
 
+        // 세션 코드로 RefreshTokenEntity 조회
         return jwtRefreshTokenRepository.findById(sessionCode)
                 .switchIfEmpty(Mono.error(new RuntimeException("존재하지 않는 세션입니다.")))
-                .flatMap(jwtRefreshTokenEntity -> jwtRefreshTokenRepository.delete(jwtRefreshTokenEntity)
-                        .then(userRepository.findByUserId(userId)) // 최신 사용자 정보 다시 조회
-                        .flatMap(user -> {
-                            String newSessionCode = UUID.randomUUID().toString();
-                            UserAuthRecord userAuthRecord = new UserAuthRecord(
-                                    userId,
-                                    authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
-                                    user.getSubscriptionPlan(),
-                                    newSessionCode);
 
-                            // 새로운 Access, Refresh 토큰 생성
-                            JwtResponseRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
-                            JwtResponseRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord);
-
-                            // 새로운 Refresh 엔티티 생성
-                            JwtRefreshTokenEntity newEntity = JwtRefreshTokenEntity.builder()
-                                    .sessionCode(newSessionCode)
-                                    .userId(userId)
-                                    .issuedAt(newRefreshToken.createdDate())
-                                    .expiredAt(newRefreshToken.refreshExpirationDate())
-                                    .build();
-
-                            return jwtRefreshTokenRepository.save(newEntity)
-                                    .map(saved -> new JwtResponseRecord(
+                // 기존 RefreshTokenEntity 삭제
+                .flatMap(refreshTokenEntity ->
+                        jwtRefreshTokenRepository.delete(refreshTokenEntity)
+                                // 삭제 후 다음 단계로 이동
+                                .thenReturn(refreshTokenEntity) // Mono<refreshTokenEntity>
+                )
+                // 사용자 정보 조회
+                .flatMap(deletedEntity ->
+                        userRepository.findByUserId(userId)
+                                .switchIfEmpty(Mono.error(new RuntimeException("존재하지 않는 사용자입니다.")))
+                )
+                // 새 토큰 생성 및 새 RefreshTokenEntity 저장
+                .flatMap(user -> {
+                    // 새로운 SessionCode 발급
+                    String newSessionCode = UUID.randomUUID().toString();
+                    // UserAuthRecord 생성
+                    UserAuthRecord userAuthRecord = new UserAuthRecord(
+                            userId,
+                            authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
+                            user.getSubscriptionPlan(),
+                            newSessionCode
+                    );
+                    // 새 AccessToken, RefreshToken 발행
+                    JwtResponseRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
+                    JwtResponseRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    // 새 RefreshTokenEntity 생성
+                    JwtRefreshTokenEntity newEntity = JwtRefreshTokenEntity.builder()
+                            .sessionCode(newSessionCode)
+                            .userId(userId)
+                            .issuedAt(newRefreshToken.createdDate())
+                            .expiredAt(newRefreshToken.refreshExpirationDate())
+                            .build();
+                    // 새 엔티티 DB 저장 후 결과를 Mono로 반환
+                    return jwtRefreshTokenRepository.save(newEntity)
+                            .map(savedEntity ->
+                                    new JwtResponseRecord(
                                             newAccessToken.accessToken(),
                                             newRefreshToken.refreshToken(),
                                             newAccessToken.createdDate(),
                                             newAccessToken.accessExpirationDate(),
                                             newRefreshToken.refreshExpirationDate()
-                                    ));
-                        })
-                )
-                .onErrorResume(e -> Mono.error(new RuntimeException("토큰 재발급 실패: " + e.getMessage())));
+                                    )
+                            );
+                })
+                // 에러 메시지 일괄 처리
+                .onErrorResume(e -> Mono.error(new RuntimeException("토큰 재발급 실패: " + e.getMessage(), e)));
     }
+
 
     @Transactional
     public Mono<UserRegResponse> register(UserRegRequests userRegRequests) {
