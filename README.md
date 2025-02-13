@@ -8,4 +8,4 @@ TODO LIST
 - [x] <b>NIO</b> 기반 논블로킹 스트리밍 구현
 - [x] <b>RaceCondition</b> 방지 구현
 - [ ] <b>Spring Security</b>를 이용한 차등 권한 부여
-- [ ] <b>MySQL</b>과 <b>R2DBC</b> 연계
+- [x] <b>MySQL</b>과 <b>R2DBC</b> 연계

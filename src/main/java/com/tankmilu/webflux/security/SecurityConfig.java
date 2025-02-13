@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -20,6 +21,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import reactor.core.publisher.Mono;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -56,18 +58,30 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationWebFilter authenticationWebFilter() {
-        AuthenticationWebFilter authenticationWebFilter = new AuthenticationWebFilter(authenticationManager());
+        AuthenticationWebFilter authenticationWebFilter = new AuthenticationWebFilter(jwtReactiveAuthenticationManager());
         authenticationWebFilter.setServerAuthenticationConverter(jwtAuthenticationConverter); // JWT 인증 컨버터 설정
         return authenticationWebFilter;
     }
 
+    // 비밀번호 호출하는 오류 존재하여 jwt용으로 교체
+//    @Bean
+//    public ReactiveAuthenticationManager authenticationManager() {
+//        UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
+//        authManager.setPasswordEncoder(this.passwordEncoder());
+//        return authManager;
+//    }
+
     @Bean
-    public ReactiveAuthenticationManager authenticationManager() {
-        UserDetailsRepositoryReactiveAuthenticationManager authManager =
-                new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
-        authManager.setPasswordEncoder(this.passwordEncoder());
-        return authManager;
+    public ReactiveAuthenticationManager jwtReactiveAuthenticationManager() {
+        return authentication -> Mono.just(
+                new UsernamePasswordAuthenticationToken(
+                        authentication.getPrincipal(), // 사용자 정보
+                        null, // 권한 증명 (jwt는 패스워드 인증이 불필요하므로 null)
+                        authentication.getAuthorities() // 사용자 권한
+                )
+        );
     }
+
 
 
     @Bean
