@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 
+// 구현 방식에 따라 스트림기반, 파일기반으로 구현 가능
 public interface FFmpegService {
 
     HashMap<String,String> getVideoMetaData(String filename) throws IOException;
