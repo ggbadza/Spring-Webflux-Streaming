@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,14 +33,17 @@ public class FileSystemService {
 
     Mono<List<String>> getFileList(Long parentId) {
         return folderTreeRepository.findByFolderId(parentId)
-                .flatMap(folder -> Mono.fromCallable(() -> {
+                .map(folder -> {
                     File directory = new File(folder.getFolderPath());
-                    String[] files = directory.list();
-                    if (files == null) {
+                    File[] fileArray = directory.listFiles(); // File 객체 배열 반환
+                    if (fileArray == null) {
                         return Collections.<String>emptyList();
                     }
-                    return Arrays.asList(files);
-                }))
+                    return Arrays.stream(fileArray)
+                            .filter(File::isFile)      // 파일만 필터링 (폴더 제외)
+                            .map(File::getName)        // 파일 이름 추출
+                            .collect(Collectors.toList());
+                })
                 // 동기 작업이므로 boundedElastic 스케줄러 사용
                 .subscribeOn(Schedulers.boundedElastic());
     }
