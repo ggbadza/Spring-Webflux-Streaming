@@ -35,6 +35,8 @@ public class VideoServiceImpl implements VideoService {
 
     private final FFmpegService ffmpegService;
 
+    private final FileSystemService fileSystemService;
+
     @Value("${app.video.urls.base}")
     public String videoBaseUrl;
 
@@ -283,4 +285,5 @@ public class VideoServiceImpl implements VideoService {
         log.info("filename="+filename+",start="+start+",end="+end+",type="+type);
         return ffmpegService.getFmp4Data(filename, start, end, type);
     }
+
 }
