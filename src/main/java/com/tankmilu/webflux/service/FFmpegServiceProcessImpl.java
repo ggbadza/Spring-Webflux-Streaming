@@ -26,9 +26,9 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     public String ffprobeDir;
 
     @Override
-    public HashMap<String, String> getVideoMetaData(String filename) throws IOException {
+    public HashMap<String, String> getVideoMetaData(String videoPath) throws IOException {
         FFprobe ffprobe = new FFprobe(ffprobeDir);
-        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
         FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
 
         HashMap<String, String> metaData = new HashMap<>();
@@ -67,10 +67,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
 
     @Override
-    public List<List<String>> getVideoKeyFrame(String filename) throws IOException {
+    public List<List<String>> getVideoKeyFrame(String videoPath) throws IOException {
         try {
             // 비디오 파일 경로
-            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
             // FFprobe 명령어 생성
             ProcessBuilder processBuilder = new ProcessBuilder(
@@ -100,9 +100,9 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     }
 
     @Override
-    public Double getVideoDuration(String filename) throws IOException {
+    public Double getVideoDuration(String videoPath) throws IOException {
         FFprobe ffprobe = new FFprobe(ffprobeDir);
-        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
         FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
 
         return probeResult.getFormat().duration;
@@ -122,10 +122,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     }
 
     @Override
-    public InputStreamResource getInitData(String filename) throws IOException{
+    public InputStreamResource getInitData(String videoPath) throws IOException{
         try {
             // 비디오 파일 경로
-            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
             // FFmpeg 명령어 생성
 
@@ -155,10 +155,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     }
 
     @Override
-    public InputStreamResource getTsData(String filename, String start, String to) throws IOException {
+    public InputStreamResource getTsData(String videoPath, String start, String to) throws IOException {
         try {
             // 비디오 파일 경로
-            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
             // FFmpeg 명령어 생성
             ProcessBuilder processBuilder = new ProcessBuilder(
@@ -183,10 +183,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         }
     }
 
-    public InputStreamResource getTsData(String filename, String start, String to, String type) throws IOException {
+    public InputStreamResource getTsData(String videoPath, String start, String to, String type) throws IOException {
         try {
             // 비디오 파일 경로
-            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
 
             // FFmpeg 명령어 생성
@@ -231,10 +231,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         }
     }
 
-    public InputStreamResource getFmp4Data(String filename, String start, String to, String type) throws IOException {
+    public InputStreamResource getFmp4Data(String videoPath, String start, String to, String type) throws IOException {
         try {
             // 비디오 파일 경로
-            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
+//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
             log.info("Video path: {}", videoPath);
 
             // FFmpeg 명령어 생성

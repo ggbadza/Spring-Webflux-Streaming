@@ -22,12 +22,11 @@ public class FileSystemController {
         return fileSystemService.getFolderAndFilesList(pid);
     }
 
-    @PostMapping("${app.filesystem.urls.filepath}")
+    @PostMapping("${app.filesystem.urls.videoinfo}")
     public Mono<VideoFileRecord> getVideoFileInfo(
             @RequestParam(required = false, defaultValue = "0") Long pid,
             @RequestParam String fn) {
-        return fileSystemService.getFilePath(pid, fn)
-                .map(filepath -> new VideoFileRecord(pid,fn,filepath,null,null));
+        return fileSystemService.getVideoFileInfo(pid, fn);
     }
 
 }

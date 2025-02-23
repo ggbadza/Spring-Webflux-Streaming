@@ -1,10 +1,14 @@
 package com.tankmilu.webflux.service;
 
+import com.tankmilu.webflux.entity.FolderTreeEntity;
+import com.tankmilu.webflux.enums.SubtitleEnum;
 import com.tankmilu.webflux.record.DirectoryRecord;
+import com.tankmilu.webflux.record.VideoFileRecord;
 import com.tankmilu.webflux.repository.FolderTreeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -18,6 +22,8 @@ import java.util.stream.Collectors;
 public class FileSystemService {
 
     private final FolderTreeRepository folderTreeRepository;
+
+    private final FFmpegService ffmpegService;
 
     public Mono<List<DirectoryRecord>> getFolderList(Long parentId) {
         return folderTreeRepository.findByParentFolderId(parentId)
@@ -64,9 +70,53 @@ public class FileSystemService {
                 });
     }
 
-    public Mono<String> getFilePath(Long folderId, String fileName) {
+    public Mono<String> getFolderPath(Long folderId) {
         return folderTreeRepository.findByFolderId(folderId)
-                .map(folderTreeEntity -> folderTreeEntity.getFolderPath() + "/" + fileName);
+                .map(FolderTreeEntity::getFolderPath);
+    }
+
+    public Mono<String> checkSubtitle(String folderPath, List<String> subFiles) {
+        return Flux.fromIterable(subFiles)
+                .flatMap(subFile ->
+                        Mono.fromCallable(() -> new File(folderPath + File.separator + subFile).exists())
+                                .filter(exists -> exists)
+                                .map(exists -> folderPath + File.separator + subFile)
+                )
+                .next() // 첫 번째로 발견된 요소만 전달
+                .switchIfEmpty(Mono.empty()); // 값이 없으면 빈 Mono
+    }
+
+    public Mono<VideoFileRecord> getVideoFileInfo(Long folderId, String fileName) {
+        return getFolderPath(folderId)
+                .switchIfEmpty(Mono.error(new IllegalArgumentException("존재하지 않는 폴더 요청. folderId : " + folderId)))
+                .flatMap(folderPath -> {
+                    String filePath = folderPath + File.separator + fileName;
+                    System.out.println(filePath);
+                    // 자막 후보 경로 생성 및 체크 (병렬 처리 1)
+                    List<String> subPaths = SubtitleEnum.generateSubtitleNames(fileName);
+                    System.out.println(subPaths);
+                    Mono<String> subtitleMono = checkSubtitle(folderPath, subPaths)
+                            .defaultIfEmpty("-");
+
+                    // 동영상 해상도 조회 (병렬 처리 2)
+                    Mono<String> resolutionMono = Mono.fromCallable(() ->
+                                    ffmpegService.getVideoMetaData(filePath)
+                            )
+                            .map(meta -> meta.get("width") + "x" + meta.get("height"))
+                            .onErrorReturn("-")
+                            .subscribeOn(Schedulers.boundedElastic())
+                            .defaultIfEmpty("-");
+
+                    // 두 결과 조합
+                    return Mono.zip(subtitleMono, resolutionMono)
+                            .map(tuple -> new VideoFileRecord(
+                                    folderId,
+                                    fileName,
+                                    filePath,
+                                    tuple.getT1(),  // subtitlePath
+                                    tuple.getT2()   // resolution
+                            ));
+                });
     }
 
 

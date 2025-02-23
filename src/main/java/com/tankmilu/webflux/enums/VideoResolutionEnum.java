@@ -2,6 +2,7 @@ package com.tankmilu.webflux.enums;
 
 import lombok.Getter;
 
+@Getter
 public enum VideoResolutionEnum {
     RES_480P(854, 480, 800_000,"1"),
     RES_720P(1280, 720, 2_000_000,"2"),
@@ -10,13 +11,9 @@ public enum VideoResolutionEnum {
 //    RES_2160P(3840, 2160, 15_000_000,"5"),
     ;
 
-    @Getter
     private final int width;
-    @Getter
     private final int height;
-    @Getter
     private final int bandwidth;
-    @Getter
     private final String type;
 
     VideoResolutionEnum(int width, int height, int bandwidth, String type) {
