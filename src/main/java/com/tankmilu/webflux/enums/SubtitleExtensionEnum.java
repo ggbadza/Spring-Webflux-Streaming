@@ -4,11 +4,10 @@ import lombok.Getter;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Getter
-public enum SubtitleEnum {
+public enum SubtitleExtensionEnum {
     SMI(List.of("smi","sami")),
     SRT(List.of("srt")),
     ASS(List.of("ass", "ssa")),
@@ -18,7 +17,7 @@ public enum SubtitleEnum {
 
     private final List<String> extensions;
 
-    SubtitleEnum(List<String> extensions) {
+    SubtitleExtensionEnum(List<String> extensions) {
         this.extensions = extensions;
     }
 
@@ -43,11 +42,10 @@ public enum SubtitleEnum {
         if (fileName == null) {
             return false;
         }
-        String extension = extractExtension(fileName);
-        if (extension == null) {
+        if (extractExtension(fileName) == null) {
             return false;
         }
-        for (SubtitleEnum subtitle : SubtitleEnum.values()) {
+        for (SubtitleExtensionEnum subtitle : SubtitleExtensionEnum.values()) {
             if (subtitle.isSupportedFile(fileName)) {
                 return true;
             }
@@ -70,7 +68,7 @@ public enum SubtitleEnum {
         }
 
         //  모든 자막 확장자 수집
-        List<String> allSubExtensions = Arrays.stream(SubtitleEnum.values())
+        List<String> allSubExtensions = Arrays.stream(SubtitleExtensionEnum.values())
                 .flatMap(sub -> sub.getExtensions().stream())
                 .toList();
 

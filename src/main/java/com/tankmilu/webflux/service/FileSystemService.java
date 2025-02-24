@@ -1,7 +1,8 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.FolderTreeEntity;
-import com.tankmilu.webflux.enums.SubtitleEnum;
+import com.tankmilu.webflux.enums.SubtitleExtensionEnum;
+import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import com.tankmilu.webflux.record.DirectoryRecord;
 import com.tankmilu.webflux.record.VideoFileRecord;
 import com.tankmilu.webflux.repository.FolderTreeRepository;
@@ -45,7 +46,8 @@ public class FileSystemService {
                         }
                         return Arrays.stream(fileArray)
                                 .filter(File::isFile)      // 파일만 필터링 (폴더 제외)
-                                .map(File::getName)        // 파일 이름 추출
+                                .map(File::getName)  // 파일 이름 추출
+                                .filter(VideoExtensionEnum::isVideo)        // 동영상 확장자만 필터링
                                 .collect(Collectors.toList());
                     })
                     // 동기 작업이므로 boundedElastic 스케줄러 사용
@@ -93,7 +95,7 @@ public class FileSystemService {
                     String filePath = folderPath + File.separator + fileName;
                     System.out.println(filePath);
                     // 자막 후보 경로 생성 및 체크 (병렬 처리 1)
-                    List<String> subPaths = SubtitleEnum.generateSubtitleNames(fileName);
+                    List<String> subPaths = SubtitleExtensionEnum.generateSubtitleNames(fileName);
                     System.out.println(subPaths);
                     Mono<String> subtitleMono = checkSubtitle(folderPath, subPaths)
                             .defaultIfEmpty("-");
