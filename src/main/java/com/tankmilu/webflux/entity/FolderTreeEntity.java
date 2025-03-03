@@ -27,8 +27,8 @@ public class FolderTreeEntity implements Persistable<Long> {
     @Column("parent_folder_id")
     private Long parentFolderId;
 
-    @Column("permission")
-    private String permission;  // 권한 속성
+    @Column("subscription_code")
+    private String subscriptionCode;  // 권한 속성
 
     @CreatedDate
     @Column("created_at")

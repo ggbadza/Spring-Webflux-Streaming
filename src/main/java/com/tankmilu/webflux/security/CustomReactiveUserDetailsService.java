@@ -41,7 +41,7 @@ public class CustomReactiveUserDetailsService implements ReactiveUserDetailsServ
                             user.getUserId(),
                             user.getPassword(),
                             grantedAuthorities,             // List<GrantedAuthority>
-                            user.getSubscriptionPlan()
+                            user.getSubscriptionCode()
                     );
                 });
     }

@@ -28,8 +28,8 @@ public class UserEntity implements Persistable<String> {
     private String password; // 비밀번호
 
     @Getter
-    @Column("subscription_plan")
-    private String subscriptionPlan; // 구독 플랜
+    @Column("subscription_code")
+    private String subscriptionCode; // 구독 코드
 
     @CreatedDate
     @Column("created_at")
@@ -49,11 +49,11 @@ public class UserEntity implements Persistable<String> {
     }
 
     @Builder
-    public UserEntity(String userId, String userName, String password, String subscriptionPlan) {
+    public UserEntity(String userId, String userName, String password, String subscriptionCode) {
         this.userId = userId;
         this.userName = userName;
         this.password = password;
-        this.subscriptionPlan = subscriptionPlan;
+        this.subscriptionCode = subscriptionCode;
         this.isNewRecord = true; // 새로 생성하는 경우
     }
 

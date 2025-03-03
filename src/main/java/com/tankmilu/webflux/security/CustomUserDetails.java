@@ -9,11 +9,11 @@ import java.util.Collection;
 @Getter
 public class CustomUserDetails extends User {
 
-    private final String subscriptionPlan;
+    private final String subscriptionCode;
 
-    public CustomUserDetails(String username, String password, Collection<? extends GrantedAuthority> authorities, String subscriptionPlan) {
+    public CustomUserDetails(String username, String password, Collection<? extends GrantedAuthority> authorities, String subscriptionCode) {
         super(username, password, authorities);
-        this.subscriptionPlan = subscriptionPlan;
+        this.subscriptionCode = subscriptionCode;
     }
 
 }
