@@ -55,7 +55,7 @@ public class UserService {
                     UserAuthRecord userAuthRecord = new UserAuthRecord(
                             userId,
                             roles,
-                            user.getSubscriptionPlan(),
+                            user.getSubscriptionCode(),
                             UUID.randomUUID().toString());
                     JwtResponseRecord accessToken = jwtProvider.createAccessToken(userAuthRecord);
                     JwtResponseRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord);
@@ -133,7 +133,7 @@ public class UserService {
                     UserAuthRecord userAuthRecord = new UserAuthRecord(
                             userId,
                             authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
-                            user.getSubscriptionPlan(),
+                            user.getSubscriptionCode(),
                             newSessionCode
                     );
                     // 새 AccessToken, RefreshToken 발행
@@ -175,14 +175,14 @@ public class UserService {
                             // 평문 비밀번호를 BCryptPasswordEncoder 등을 통해 해싱
                             .password(passwordEncoder.encode(userRegRequests.password()))
                             .userName(userRegRequests.userName())
-                            .subscriptionPlan(userRegRequests.subscriptionPlan())
+                            .subscriptionCode(userRegRequests.subscriptionPlan())
                             .build();
                     return userRepository.save(newUser);
                 }))
                 .map(savedUser -> new UserRegResponse(
                         savedUser.getUserId(),
                         savedUser.getUserName(),
-                        savedUser.getSubscriptionPlan(),
+                        savedUser.getSubscriptionCode(),
                         "회원가입에 성공하였습니다.")
                 );
     }

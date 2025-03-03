@@ -30,7 +30,7 @@ public class FileSystemServiceTest {
 
     @Test
     void fileSystemServiceTest_ExistsFiles() {
-        List<String> list = fileSystemService.getFileList(2L).block();  // block()으로 결과 대기
+        List<String> list = fileSystemService.getFileList(2L,"100").block();  // block()으로 결과 대기
         System.out.println(list);
     }
 
@@ -52,7 +52,7 @@ public class FileSystemServiceTest {
         folderTreeRepository.saveAll(childFolders).collectList().block();
 
         // 테스트 대상: parentFolderId가 9999인 폴더 조회
-        List<DirectoryRecord> folderList = fileSystemService.getFolderList(9999L).block();
+        List<DirectoryRecord> folderList = fileSystemService.getFolderList(9999L,"100").block();
         System.out.println(folderList);
 
         // 검증: 결과에 자식 폴더들 (10000~10005)가 모두 포함되어야 함
@@ -75,7 +75,7 @@ public class FileSystemServiceTest {
     void getVideoFileInfoTest_ExistsSubs() {
 //        FolderTreeEntity parentFolder = createTestFolder(9999L, "tempParent", "C:\\Temp", null, "1", true);
 //        folderTreeRepository.save(parentFolder).block();
-          fileSystemService.getVideoFileInfo(2L, "test.mkv")
+          fileSystemService.getVideoFileInfo(2L, "test.mkv","100")
                 .doOnNext(System.out::println)  // 출력 확인
                 .block();
 //        folderTreeRepository.delete(parentFolder).block();

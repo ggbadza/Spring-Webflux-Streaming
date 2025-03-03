@@ -115,7 +115,7 @@ class UserServiceTest {
                                             .userId(userId)
                                             .password(passwordEncoder.encode(password))
                                             .userName("Test User")
-                                            .subscriptionPlan("test")
+                                            .subscriptionCode("100")
                                             .build();
                                     return userRepository.save(user)
                                             .then(userService.createToken(new UsernamePasswordAuthenticationToken(userId, password)));
@@ -158,7 +158,7 @@ class UserServiceTest {
                                                     .userId(userId)
                                                     .password(passwordEncoder.encode(correctPassword))
                                                     .userName("Test User")
-                                                    .subscriptionPlan("test")
+                                                    .subscriptionCode("100")
                                                     .build();
                                             return userRepository.save(user);
                                         })
@@ -193,7 +193,7 @@ class UserServiceTest {
                 .userId(userId)
                 .password(passwordEncoder.encode(password))
                 .userName("Test User")
-                .subscriptionPlan("test")
+                .subscriptionCode("100")
                 .build();
 
         AtomicReference<String> oldRefreshTokenRef = new AtomicReference<>();

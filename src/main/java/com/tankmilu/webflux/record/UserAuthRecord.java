@@ -5,7 +5,7 @@ import java.util.List;
 public record UserAuthRecord(
         String userId,
         List<String> roles,
-        String subscriptionPlan,
+        String subscriptionPlanCode,
         String sessionCode
 ) {
 }

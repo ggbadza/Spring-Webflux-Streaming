@@ -6,23 +6,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 public enum SubscriptionCodeEnum {
-    PREMIUM("100"),
-    STANDARD("101"),
-    BASIC("102"),
-    LITE("103");
+    PREMIUM("100", 100),
+    STANDARD("101", 101),
+    BASIC("102", 102),
+    LITE("103", 103);
 
     @Getter
-    private final String permissionLevel;
+    private final String permissionCode;
 
-    private static final Map<String, SubscriptionCodeEnum> BY_PERMISSION_LEVEL = new HashMap<String, SubscriptionCodeEnum>();
+    @Getter
+    private final int permissionLevel;
+
+    private static final Map<String, SubscriptionCodeEnum> BY_PERMISSION_LEVEL = new HashMap<>();
 
     static {
         for (SubscriptionCodeEnum code : values()) {
-            BY_PERMISSION_LEVEL.put(code.getPermissionLevel(), code);
+            BY_PERMISSION_LEVEL.put(code.getPermissionCode(), code);
         }
     }
 
-    SubscriptionCodeEnum(String permissionLevel) {
+    SubscriptionCodeEnum(String permissionCode, int permissionLevel) {
+        this.permissionCode = permissionCode;
         this.permissionLevel = permissionLevel;
     }
 
@@ -41,5 +45,14 @@ public enum SubscriptionCodeEnum {
             throw new IllegalArgumentException("존재하지 않는 플랜 코드 입니다 : " + permissionLevel);
         }
         return code;
+    }
+
+    public static Boolean comparePermissionLevel(String userPermissionCode, String contentsPermissionCode) {
+        SubscriptionCodeEnum userSubscription = fromPermissionLevel(userPermissionCode);
+        SubscriptionCodeEnum contentsSubscription = fromPermissionLevel(contentsPermissionCode);
+        if (userSubscription.getPermissionLevel() <= contentsSubscription.getPermissionLevel() ) {
+            return true; // 유저 권한이 콘텐츠 권한보다 클 경우
+        }
+        return false; // 유저 권한이 콘텐츠 권한보다 작을 경우
     }
 }

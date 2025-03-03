@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.FolderTreeEntity;
+import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.enums.SubtitleExtensionEnum;
 import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import com.tankmilu.webflux.record.DirectoryRecord;
@@ -8,6 +9,7 @@ import com.tankmilu.webflux.record.VideoFileRecord;
 import com.tankmilu.webflux.repository.FolderTreeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -26,19 +28,30 @@ public class FileSystemService {
 
     private final FFmpegService ffmpegService;
 
-    public Mono<List<DirectoryRecord>> getFolderList(Long parentId) {
+    public Mono<List<DirectoryRecord>> getFolderList(Long parentId,String userPlan) {
         return folderTreeRepository.findByParentFolderId(parentId)
+                // 유저 권한과 비교하여 권한이 있는 폴더 목록만 리턴
+                .filter(folder ->
+                        SubscriptionCodeEnum.comparePermissionLevel(
+                                userPlan,
+                                folder.getSubscriptionCode()
+                        )
+                )
                 .map(folder -> new DirectoryRecord(folder.getFolderId(), folder.getName()))
                 .collectList();
     }
 
-    Mono<List<String>> getFileList(Long parentId) {
+    Mono<List<String>> getFileList(Long parentId,String userPlan) {
             return folderTreeRepository.findByFolderId(parentId)
                     .switchIfEmpty(
                             // 폴더가 없으면 즉시 에러 발생
                             Mono.error(new IllegalArgumentException("존재하지 않는 폴더 요청. pid : " + parentId))
                     )
                     .map(folder -> {
+                        // 폴더에 대한 유저 권한 미 존재시 오류 발생.(403 에러 발생)
+                        if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, folder.getSubscriptionCode())) {
+                            throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                        }
                         File directory = new File(folder.getFolderPath());
                         File[] fileArray = directory.listFiles(); // File 객체 배열 반환
                         if (fileArray == null) {
@@ -54,10 +67,10 @@ public class FileSystemService {
                     .subscribeOn(Schedulers.boundedElastic());
     }
 
-    public Mono<List<DirectoryRecord>> getFolderAndFilesList(Long parentId) {
-        Mono<List<DirectoryRecord>> foldersMono = getFolderList(parentId);
+    public Mono<List<DirectoryRecord>> getFolderAndFilesList(Long parentId,String userPlan) {
+        Mono<List<DirectoryRecord>> foldersMono = getFolderList(parentId, userPlan);
 
-        Mono<List<DirectoryRecord>> filesMono = getFileList(parentId)
+        Mono<List<DirectoryRecord>> filesMono = getFileList(parentId, userPlan)
                 .map(fileNames -> fileNames.stream()
                         .map(fileName -> new DirectoryRecord(null, fileName))
                         .collect(Collectors.toList()));
@@ -72,9 +85,15 @@ public class FileSystemService {
                 });
     }
 
-    public Mono<String> getFolderPath(Long folderId) {
+    public Mono<String> getFolderPath(Long folderId, String userPlan) {
         return folderTreeRepository.findByFolderId(folderId)
-                .map(FolderTreeEntity::getFolderPath);
+                .map(folder ->{
+                    // 폴더에 대한 유저 권한 미 존재시 오류 발생.(403 에러 발생)
+                    if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, folder.getSubscriptionCode())) {
+                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                    }
+                    return folder.getFolderPath();
+                });
     }
 
     public Mono<String> checkSubtitle(String folderPath, List<String> subFiles) {
@@ -88,8 +107,8 @@ public class FileSystemService {
                 .switchIfEmpty(Mono.empty()); // 값이 없으면 빈 Mono
     }
 
-    public Mono<VideoFileRecord> getVideoFileInfo(Long folderId, String fileName) {
-        return getFolderPath(folderId)
+    public Mono<VideoFileRecord> getVideoFileInfo(Long folderId, String fileName, String userPlan) {
+        return getFolderPath(folderId, userPlan)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("존재하지 않는 폴더 요청. folderId : " + folderId)))
                 .flatMap(folderPath -> {
                     String filePath = folderPath + File.separator + fileName;
