@@ -2,7 +2,7 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.JwtRefreshTokenEntity;
 import com.tankmilu.webflux.entity.UserEntity;
-import com.tankmilu.webflux.record.JwtResponseRecord;
+import com.tankmilu.webflux.record.JwtAccessAndRefreshRecord;
 import com.tankmilu.webflux.record.UserAuthRecord;
 import com.tankmilu.webflux.record.UserRegRequests;
 import com.tankmilu.webflux.record.UserRegResponse;
@@ -40,7 +40,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
-    public Mono<JwtResponseRecord> createToken(Authentication authentication) {
+    public Mono<JwtAccessAndRefreshRecord> createToken(Authentication authentication) {
         String userId = authentication.getName();
         // 권한 목록 추출
         List<String> roles = authentication.getAuthorities().stream()
@@ -57,15 +57,15 @@ public class UserService {
                             roles,
                             user.getSubscriptionCode(),
                             UUID.randomUUID().toString());
-                    JwtResponseRecord accessToken = jwtProvider.createAccessToken(userAuthRecord);
-                    JwtResponseRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord accessToken = jwtProvider.createAccessToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord);
                     return Tuples.of(userAuthRecord, accessToken, refreshToken);
                 })
                 // Refresh 토큰 엔티티 생성, 다시 튜플로 묶어서 리턴
                 .flatMap(tuple -> {
                     UserAuthRecord userAuthRecord = tuple.getT1();
-                    JwtResponseRecord accessToken = tuple.getT2();
-                    JwtResponseRecord refreshToken = tuple.getT3();
+                    JwtAccessAndRefreshRecord accessToken = tuple.getT2();
+                    JwtAccessAndRefreshRecord refreshToken = tuple.getT3();
 
                     JwtRefreshTokenEntity entity = JwtRefreshTokenEntity.builder()
                             .sessionCode(userAuthRecord.sessionCode())
@@ -78,12 +78,12 @@ public class UserService {
                 })
                 // 리프레시 토큰 엔티티 DB 저장
                 .flatMap(tuple -> {
-                    JwtResponseRecord accessToken = tuple.getT1();
-                    JwtResponseRecord refreshToken = tuple.getT2();
+                    JwtAccessAndRefreshRecord accessToken = tuple.getT1();
+                    JwtAccessAndRefreshRecord refreshToken = tuple.getT2();
                     JwtRefreshTokenEntity entity = tuple.getT3();
 
                     return jwtRefreshTokenRepository.save(entity)
-                            .map(saved -> new JwtResponseRecord(
+                            .map(saved -> new JwtAccessAndRefreshRecord(
                                     accessToken.accessToken(),
                                     refreshToken.refreshToken(),
                                     accessToken.createdDate(),
@@ -99,15 +99,15 @@ public class UserService {
 
 
     @Transactional
-    public Mono<JwtResponseRecord> accessTokenReissue(Authentication authentication,
-                                                      JwtResponseRecord jwtResponseRecord) {
+    public Mono<JwtAccessAndRefreshRecord> accessTokenReissue(Authentication authentication,
+                                                              JwtAccessAndRefreshRecord jwtAccessAndRefreshRecord) {
         // RefreshToken 검사
-        if (!jwtValidator.validateToken(jwtResponseRecord.refreshToken())) {
+        if (!jwtValidator.validateToken(jwtAccessAndRefreshRecord.refreshToken())) {
             return Mono.error(new RuntimeException("RefreshToken 이 유효하지 않습니다."));
         }
         // 토큰에서 사용자 정보 추출
-        String userId = jwtValidator.extractUserId(jwtResponseRecord.refreshToken());
-        String sessionCode = jwtValidator.extractSessionCode(jwtResponseRecord.refreshToken());
+        String userId = jwtValidator.extractUserId(jwtAccessAndRefreshRecord.refreshToken());
+        String sessionCode = jwtValidator.extractSessionCode(jwtAccessAndRefreshRecord.refreshToken());
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
 
         // 세션 코드로 RefreshTokenEntity 조회
@@ -137,8 +137,8 @@ public class UserService {
                             newSessionCode
                     );
                     // 새 AccessToken, RefreshToken 발행
-                    JwtResponseRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
-                    JwtResponseRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord);
                     // 새 RefreshTokenEntity 생성
                     JwtRefreshTokenEntity newEntity = JwtRefreshTokenEntity.builder()
                             .sessionCode(newSessionCode)
@@ -149,7 +149,7 @@ public class UserService {
                     // 새 엔티티 DB 저장 후 결과를 Mono로 반환
                     return jwtRefreshTokenRepository.save(newEntity)
                             .map(savedEntity ->
-                                    new JwtResponseRecord(
+                                    new JwtAccessAndRefreshRecord(
                                             newAccessToken.accessToken(),
                                             newRefreshToken.refreshToken(),
                                             newAccessToken.createdDate(),
