@@ -95,9 +95,6 @@ public class UserService {
                 .onErrorResume(e -> Mono.error(new Exception("리프레시 토큰 발급에 실패하였습니다.", e)));
     }
 
-
-
-
     @Transactional
     public Mono<JwtAccessAndRefreshRecord> accessTokenReissue(Authentication authentication,
                                                               String refreshToken) {
@@ -185,6 +182,11 @@ public class UserService {
                         savedUser.getSubscriptionCode(),
                         "회원가입에 성공하였습니다.")
                 );
+    }
+
+    public Mono<UserRegResponse> aboutMe(String userId){
+        return userRepository.findByUserId(userId)
+                .map(user -> new UserRegResponse(user.getUserId(),user.getUserName(),user.getSubscriptionCode(),null));
     }
 
 }

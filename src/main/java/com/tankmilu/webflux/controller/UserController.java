@@ -1,17 +1,16 @@
 package com.tankmilu.webflux.controller;
 
 import com.tankmilu.webflux.record.*;
+import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -44,7 +43,7 @@ public class UserController {
                 .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
     }
 
-    @PostMapping("/reissue")
+    @RequestMapping(value = "/reissue", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<Boolean>> reissue(ServerWebExchange exchange) {
         // 리프레시토큰 추출
         HttpCookie cookie = exchange.getRequest().getCookies().getFirst("refreshToken");
@@ -97,5 +96,11 @@ public class UserController {
                             .body(new UserRegResponse(null, null, null, "회원가입 실패: " + e.getMessage())));
                 });
     }
+
+    @RequestMapping(value = "/me", method = {RequestMethod.GET, RequestMethod.POST})
+    public Mono<UserRegResponse> aboutMe(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        return userService.aboutMe(userDetails.getUsername());
+    }
+
 
 }
