@@ -100,14 +100,14 @@ public class UserService {
 
     @Transactional
     public Mono<JwtAccessAndRefreshRecord> accessTokenReissue(Authentication authentication,
-                                                              JwtAccessAndRefreshRecord jwtAccessAndRefreshRecord) {
+                                                              String refreshToken) {
         // RefreshToken 검사
-        if (!jwtValidator.validateToken(jwtAccessAndRefreshRecord.refreshToken())) {
+        if (!jwtValidator.validateToken(refreshToken)) {
             return Mono.error(new RuntimeException("RefreshToken 이 유효하지 않습니다."));
         }
         // 토큰에서 사용자 정보 추출
-        String userId = jwtValidator.extractUserId(jwtAccessAndRefreshRecord.refreshToken());
-        String sessionCode = jwtValidator.extractSessionCode(jwtAccessAndRefreshRecord.refreshToken());
+        String userId = jwtValidator.extractUserId(refreshToken);
+        String sessionCode = jwtValidator.extractSessionCode(refreshToken);
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
 
         // 세션 코드로 RefreshTokenEntity 조회

@@ -3,16 +3,16 @@ package com.tankmilu.webflux.controller;
 import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -67,6 +67,23 @@ public class UserController {
                             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                                     .body(false));
                         });
+    }
+
+    @PostMapping("/reissue")
+    public Mono<ResponseEntity<Boolean>> reissue(ServerWebExchange exchange) {
+        // 리프레시토큰 추출
+        HttpCookie cookie = exchange.getRequest().getCookies().getFirst("refreshToken");
+        if (cookie == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(false));
+        }
+        String refreshToken = cookie.getValue();
+
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .flatMap(authentication ->
+                        userService.accessTokenReissue(authentication, refreshToken)
+                                .map(newTokens -> ResponseEntity.ok(true))
+                                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false))));
     }
 
     @PostMapping("/register")

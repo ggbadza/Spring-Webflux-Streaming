@@ -208,7 +208,7 @@ class UserServiceTest {
                                                 oldRefreshTokenRef.set(originalTokens.refreshToken());
 
                                                 // 신규 토큰 발행 및 검증
-                                                return userService.accessTokenReissue(authentication, originalTokens)
+                                                return userService.accessTokenReissue(authentication, originalTokens.refreshToken())
                                                         .flatMap(newTokens -> {
                                                             assertNotNull(newTokens);
 

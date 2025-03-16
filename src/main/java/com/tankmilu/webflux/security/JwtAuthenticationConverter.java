@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.security;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -20,7 +21,7 @@ public class JwtAuthenticationConverter implements ServerAuthenticationConverter
 
     @Override
     public Mono<Authentication> convert(ServerWebExchange exchange) {
-        String token = extractToken(exchange.getRequest().getHeaders());
+        String token = extractAccessTokenFromCookie(exchange);
         if (token == null || !jwtValidator.validateToken(token)) { // 토큰 인증 실패 시
             return Mono.empty();
         }
@@ -30,11 +31,19 @@ public class JwtAuthenticationConverter implements ServerAuthenticationConverter
         return Mono.just(auth);
     }
 
-    private String extractToken(HttpHeaders headers) {
+    // 헤더에서 토큰 추출
+    private String extractAccessTokenFromHeader(HttpHeaders headers) {
         String authHeader = headers.getFirst(HttpHeaders.AUTHORIZATION);
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             return authHeader.substring(7);
         }
         return null;
     }
+
+    // 쿠키에서 토큰 추출
+    private String extractAccessTokenFromCookie(ServerWebExchange exchange) {
+        HttpCookie cookie = exchange.getRequest().getCookies().getFirst("accessToken");
+        return (cookie != null) ? cookie.getValue() : null;
+    }
+
 }
