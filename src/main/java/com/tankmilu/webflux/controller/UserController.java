@@ -38,35 +38,10 @@ public class UserController {
                         )
                         .flatMap(authentication ->
                                 userService.createToken(authentication)
-                                        .map(jwtResponse -> {
-                                            // 액세스 토큰 쿠키 생성
-                                            ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwtResponse.accessToken())
-                                                    .httpOnly(true)
-                                                    .secure(true)
-                                                    .path("/")
-                                                    .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate()))  // 현재 시간과 만기 시간의 차이
-                                                    .build();
-
-                                            // 리프레시 토큰 쿠키 생성
-                                            ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", jwtResponse.refreshToken())
-                                                    .httpOnly(true)
-                                                    .secure(true)
-                                                    .path("/")
-                                                    .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate())) // 현재 시간과 만기 시간의 차이
-                                                    .build();
-
-                                            // jwt 토큰을 Set-Cookie 헤더로 추가
-                                            return ResponseEntity.ok()
-                                                    .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
-                                                    .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
-                                                    .body(true);
-                                        })
+                                        .map(this::buildTokenResponse)
                         )
-                        )
-                        .onErrorResume(e -> {
-                            return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                    .body(false));
-                        });
+                )
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
     }
 
     @PostMapping("/reissue")
@@ -80,10 +55,34 @@ public class UserController {
 
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
-                .flatMap(authentication ->
-                        userService.accessTokenReissue(authentication, refreshToken)
-                                .map(newTokens -> ResponseEntity.ok(true))
-                                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false))));
+                .flatMap(authentication -> userService.accessTokenReissue(authentication, refreshToken))
+                .map(this::buildTokenResponse)
+                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
+    }
+
+    // jwt를 헤더로 변환해서 응답
+    private ResponseEntity<Boolean> buildTokenResponse(JwtAccessAndRefreshRecord jwtResponse){
+        // 액세스 토큰 쿠키 생성
+        ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwtResponse.accessToken())
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate()))  // 현재 시간과 만기 시간의 차이
+                .build();
+
+        // 리프레시 토큰 쿠키 생성
+        ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", jwtResponse.refreshToken())
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate())) // 현재 시간과 만기 시간의 차이
+                .build();
+
+        // jwt 토큰을 Set-Cookie 헤더로 추가
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+                .body(true);
     }
 
     @PostMapping("/register")
