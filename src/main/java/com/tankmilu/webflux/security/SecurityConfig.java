@@ -23,6 +23,8 @@ import org.springframework.web.cors.reactive.CorsConfigurationSource;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Configuration
 @EnableWebFluxSecurity
 @RequiredArgsConstructor
@@ -82,12 +84,13 @@ public class SecurityConfig {
         );
     }
 
-
+    @Value("${cors.allowedOrigins}")
+    private List<String> allowedOrigins;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() { // 웹플럭스 기반 Cors 설정 클래스
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOrigin("*"); // 허용할 도메인
+        configuration.setAllowedOrigins(allowedOrigins); // 허용할 도메인
         configuration.addAllowedMethod("*"); // 허용할 HTTP 메서드
         configuration.addAllowedHeader("*"); // 허용할 헤더
         configuration.setAllowCredentials(true);
