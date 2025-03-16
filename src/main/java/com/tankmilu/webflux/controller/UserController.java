@@ -28,7 +28,7 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/login")
-    public Mono<ResponseEntity<JwtAccessRecord>> login(@RequestBody Mono<LoginRequestRecord> loginRequest) {
+    public Mono<ResponseEntity<Boolean>> login(@RequestBody Mono<LoginRequestRecord> loginRequest) {
         return loginRequest.flatMap(request ->
                 authenticationManager.authenticate(
                                 new UsernamePasswordAuthenticationToken(
@@ -39,8 +39,13 @@ public class UserController {
                         .flatMap(authentication ->
                                 userService.createToken(authentication)
                                         .map(jwtResponse -> {
-                                            // 액세스 토큰 응답 생성
-                                            JwtAccessRecord jwtAccessRecord = new JwtAccessRecord(jwtResponse.accessToken(), jwtResponse.createdDate(), jwtResponse.accessExpirationDate());
+                                            // 액세스 토큰 쿠키 생성
+                                            ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwtResponse.accessToken())
+                                                    .httpOnly(true)
+                                                    .secure(true)
+                                                    .path("/")
+                                                    .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate()))  // 현재 시간과 만기 시간의 차이
+                                                    .build();
 
                                             // 리프레시 토큰 쿠키 생성
                                             ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", jwtResponse.refreshToken())
@@ -50,17 +55,17 @@ public class UserController {
                                                     .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate())) // 현재 시간과 만기 시간의 차이
                                                     .build();
 
-                                            // 리프레시 토큰만 Set-Cookie 헤더로 쿠키 추가
+                                            // jwt 토큰을 Set-Cookie 헤더로 추가
                                             return ResponseEntity.ok()
+                                                    .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
                                                     .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
-                                                    .body(jwtAccessRecord);
+                                                    .body(true);
                                         })
                         )
                         )
                         .onErrorResume(e -> {
                             return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                                    .body(new JwtAccessRecord(null, null, null)));
-
+                                    .body(false));
                         });
     }
 
