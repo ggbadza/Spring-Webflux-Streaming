@@ -20,17 +20,19 @@ public class FileSystemController {
 
     @GetMapping("${app.filesystem.urls.files}")
     public Mono<List<DirectoryRecord>> getDirectoryContents(
+            @RequestParam(required = true) String type,
             @RequestParam(required = false, defaultValue = "0") Long pid,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return fileSystemService.getFolderAndFilesList(pid, userDetails.getSubscriptionCode());
+        return fileSystemService.getFolderAndFilesList(type, pid, userDetails.getSubscriptionCode());
     }
 
     @PostMapping("${app.filesystem.urls.videoinfo}")
     public Mono<VideoFileRecord> getVideoFileInfo(
+            @RequestParam(required = true) String type,
             @RequestParam(required = false, defaultValue = "0") Long pid,
             @RequestParam String fn,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return fileSystemService.getVideoFileInfo(pid, fn, userDetails.getSubscriptionCode());
+        return fileSystemService.getVideoFileInfo(type, pid, fn, userDetails.getSubscriptionCode());
     }
 
 }

@@ -1,12 +1,15 @@
 package com.tankmilu.webflux.service;
 
-import com.tankmilu.webflux.entity.FolderTreeEntity;
+import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.enums.SubtitleExtensionEnum;
 import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import com.tankmilu.webflux.record.DirectoryRecord;
 import com.tankmilu.webflux.record.VideoFileRecord;
-import com.tankmilu.webflux.repository.FolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.DramaFolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.MovieFolderTreeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
@@ -24,11 +27,24 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FileSystemService {
 
-    private final FolderTreeRepository folderTreeRepository;
+    private final AnimationFolderTreeRepository animationFolderTreeRepository;
+    private final DramaFolderTreeRepository dramaFolderTreeRepository;
+    private final MovieFolderTreeRepository movieFolderTreeRepository;
 
     private final FFmpegService ffmpegService;
 
-    public Mono<List<DirectoryRecord>> getFolderList(Long parentId,String userPlan) {
+    private FolderTreeRepository<? extends FolderTreeEntity> getFolderTreeRepository(String type) {
+        return switch (type) {
+            case "ani" -> animationFolderTreeRepository;
+            case "movie" -> movieFolderTreeRepository;
+            case "drama" -> dramaFolderTreeRepository;
+            default -> throw new IllegalArgumentException("Invalid type: " + type);
+        };
+    }
+
+
+    public Mono<List<DirectoryRecord>> getFolderList(String type, Long parentId, String userPlan) {
+        FolderTreeRepository<? extends FolderTreeEntity> folderTreeRepository = getFolderTreeRepository(type);
         return folderTreeRepository.findByParentFolderId(parentId)
                 // 유저 권한과 비교하여 권한이 있는 폴더 목록만 리턴
                 .filter(folder ->
@@ -41,7 +57,9 @@ public class FileSystemService {
                 .collectList();
     }
 
-    Mono<List<String>> getFileList(Long parentId,String userPlan) {
+
+    Mono<List<String>> getFileList(String type, Long parentId,String userPlan) {
+        FolderTreeRepository<? extends FolderTreeEntity> folderTreeRepository = getFolderTreeRepository(type);
             return folderTreeRepository.findByFolderId(parentId)
                     .switchIfEmpty(
                             // 폴더가 없으면 즉시 에러 발생
@@ -67,10 +85,12 @@ public class FileSystemService {
                     .subscribeOn(Schedulers.boundedElastic());
     }
 
-    public Mono<List<DirectoryRecord>> getFolderAndFilesList(Long parentId,String userPlan) {
-        Mono<List<DirectoryRecord>> foldersMono = getFolderList(parentId, userPlan);
+    public Mono<List<DirectoryRecord>> getFolderAndFilesList(String type, Long parentId,String userPlan) {
+        FolderTreeRepository<? extends FolderTreeEntity> folderTreeRepository = getFolderTreeRepository(type);
 
-        Mono<List<DirectoryRecord>> filesMono = getFileList(parentId, userPlan)
+        Mono<List<DirectoryRecord>> foldersMono = getFolderList(type, parentId, userPlan);
+
+        Mono<List<DirectoryRecord>> filesMono = getFileList(type, parentId, userPlan)
                 .map(fileNames -> fileNames.stream()
                         .map(fileName -> new DirectoryRecord(null, fileName, null))
                         .collect(Collectors.toList()));
@@ -93,7 +113,9 @@ public class FileSystemService {
                 });
     }
 
-    public Mono<String> getFolderPath(Long folderId, String userPlan) {
+    public Mono<String> getFolderPath(String type, Long folderId, String userPlan) {
+        FolderTreeRepository<? extends FolderTreeEntity> folderTreeRepository = getFolderTreeRepository(type);
+
         return folderTreeRepository.findByFolderId(folderId)
                 .map(folder ->{
                     // 폴더에 대한 유저 권한 미 존재시 오류 발생.(403 에러 발생)
@@ -115,8 +137,8 @@ public class FileSystemService {
                 .switchIfEmpty(Mono.empty()); // 값이 없으면 빈 Mono
     }
 
-    public Mono<VideoFileRecord> getVideoFileInfo(Long folderId, String fileName, String userPlan) {
-        return getFolderPath(folderId, userPlan)
+    public Mono<VideoFileRecord> getVideoFileInfo(String type, Long folderId, String fileName, String userPlan) {
+        return getFolderPath(type, folderId, userPlan)
                 .switchIfEmpty(Mono.error(new IllegalArgumentException("존재하지 않는 폴더 요청. folderId : " + folderId)))
                 .flatMap(folderPath -> {
                     String filePath = folderPath + File.separator + fileName;

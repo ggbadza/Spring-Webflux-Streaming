@@ -1,17 +1,15 @@
 package com.tankmilu.webflux.service;
 
-import com.tankmilu.webflux.entity.FolderTreeEntity;
+import com.tankmilu.webflux.entity.folder.AnimationFolderTreeEntity;
+import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
 import com.tankmilu.webflux.record.DirectoryRecord;
-import com.tankmilu.webflux.record.UserRegRequests;
-import com.tankmilu.webflux.repository.FolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.util.ReflectionTestUtils;
-import reactor.test.StepVerifier;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,22 +24,22 @@ public class FileSystemServiceTest {
     private FileSystemService fileSystemService;
 
     @Autowired
-    private FolderTreeRepository folderTreeRepository;
+    private AnimationFolderTreeRepository folderTreeRepository;
 
     @Test
     void fileSystemServiceTest_ExistsFiles() {
-        List<String> list = fileSystemService.getFileList(2L,"100").block();  // block()으로 결과 대기
+        List<String> list = fileSystemService.getFileList("ani", 2L,"100").block();  // block()으로 결과 대기
         System.out.println(list);
     }
 
     @Test
     void getFolderListTest_WithTemporaryFolders() {
         // 임시 부모 폴더 (folderId: 9999) 생성 (parentFolderId는 null)
-        FolderTreeEntity parentFolder = createTestFolder(
+        AnimationFolderTreeEntity parentFolder = (AnimationFolderTreeEntity) createTestFolder(
                 9999L, "tempParent", "/tmp/parent", null, "1", false);
 
         // 임시 자식 폴더 (folderId: 10000 ~ 10005) 생성, parentFolderId는 9999로 설정
-        List<FolderTreeEntity> childFolders = new ArrayList<>();
+        List<AnimationFolderTreeEntity> childFolders = new ArrayList<>();
         for (long id = 10000; id <= 10005; id++) {
             childFolders.add(createTestFolder(
                     id, "tempChild" + id, "/tmp/child" + id, 9999L, "1", false));
@@ -52,7 +50,7 @@ public class FileSystemServiceTest {
         folderTreeRepository.saveAll(childFolders).collectList().block();
 
         // 테스트 대상: parentFolderId가 9999인 폴더 조회
-        List<DirectoryRecord> folderList = fileSystemService.getFolderList(9999L,"100").block();
+        List<DirectoryRecord> folderList = fileSystemService.getFolderList("ani",9999L,"100").block();
         System.out.println(folderList);
 
         // 검증: 결과에 자식 폴더들 (10000~10005)가 모두 포함되어야 함
@@ -75,15 +73,15 @@ public class FileSystemServiceTest {
     void getVideoFileInfoTest_ExistsSubs() {
 //        FolderTreeEntity parentFolder = createTestFolder(9999L, "tempParent", "C:\\Temp", null, "1", true);
 //        folderTreeRepository.save(parentFolder).block();
-          fileSystemService.getVideoFileInfo(2L, "test.mkv","100")
+          fileSystemService.getVideoFileInfo("ani",2L, "test.mkv","100")
                 .doOnNext(System.out::println)  // 출력 확인
                 .block();
 //        folderTreeRepository.delete(parentFolder).block();
     }
 
-    private FolderTreeEntity createTestFolder(Long folderId, String name, String folderPath,
-                                              Long parentFolderId, String permission, boolean hasFiles) {
-        FolderTreeEntity folder = new FolderTreeEntity();
+    private AnimationFolderTreeEntity createTestFolder(Long folderId, String name, String folderPath,
+                                                       Long parentFolderId, String permission, boolean hasFiles) {
+        AnimationFolderTreeEntity folder = new AnimationFolderTreeEntity();
         ReflectionTestUtils.setField(folder, "folderId", folderId);
         ReflectionTestUtils.setField(folder, "name", name);
         ReflectionTestUtils.setField(folder, "folderPath", folderPath);
