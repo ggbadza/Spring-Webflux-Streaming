@@ -186,7 +186,7 @@ public class UserService {
 
     public Mono<UserRegResponse> aboutMe(String userId){
         return userRepository.findByUserId(userId)
-                .map(user -> new UserRegResponse(user.getUserId(),user.getUserName(),user.getSubscriptionCode(),null));
+                .map(user -> new UserRegResponse(user.getUserId(),user.getUserName(),user.getSubscriptionCode(),"정상적으로 처리되었습니다."));
     }
 
 }

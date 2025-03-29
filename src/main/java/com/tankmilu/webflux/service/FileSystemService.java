@@ -37,7 +37,7 @@ public class FileSystemService {
                                 folder.getSubscriptionCode()
                         )
                 )
-                .map(folder -> new DirectoryRecord(folder.getFolderId(), folder.getName()))
+                .map(folder -> new DirectoryRecord(folder.getFolderId(), folder.getName(), folder.getHasFiles()))
                 .collectList();
     }
 
@@ -72,16 +72,24 @@ public class FileSystemService {
 
         Mono<List<DirectoryRecord>> filesMono = getFileList(parentId, userPlan)
                 .map(fileNames -> fileNames.stream()
-                        .map(fileName -> new DirectoryRecord(null, fileName))
+                        .map(fileName -> new DirectoryRecord(null, fileName, null))
                         .collect(Collectors.toList()));
 
-        // 두 목록을 결합하여 반환
-        return Mono.zip(foldersMono, filesMono)
-                .map(tuple -> {
-                    List<DirectoryRecord> combinedList = new ArrayList<>();
-                    combinedList.addAll(tuple.getT1()); // 폴더 목록
-                    combinedList.addAll(tuple.getT2()); // 파일 목록
-                    return combinedList;
+        return folderTreeRepository.findByFolderId(parentId)
+                .flatMap(entity -> {
+                    if (entity.getHasFiles()) {
+                        // hasFile이 true인 경우 폴더와 파일 리스트를 결합
+                        return Mono.zip(foldersMono, filesMono)
+                                .map(tuple -> {
+                                    List<DirectoryRecord> combinedList = new ArrayList<>();
+                                    combinedList.addAll(tuple.getT1());
+                                    combinedList.addAll(tuple.getT2());
+                                    return combinedList;
+                                });
+                    } else {
+                        // hasFile이 false인 경우 폴더 리스트만 반환
+                        return foldersMono;
+                    }
                 });
     }
 
