@@ -8,7 +8,7 @@ import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-@Table()
+@Table("user_authorities")
 public class UserAuthorityEntity implements Persistable<String> {
 
     @Id

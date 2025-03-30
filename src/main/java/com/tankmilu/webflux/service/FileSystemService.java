@@ -33,6 +33,7 @@ public class FileSystemService {
 
     private final FFmpegService ffmpegService;
 
+    // FolderTreeRepository를 구현하는 구현클래스(리파지토리)를 각 타입별 반환
     private FolderTreeRepository<? extends FolderTreeEntity> getFolderTreeRepository(String type) {
         return switch (type) {
             case "ani" -> animationFolderTreeRepository;

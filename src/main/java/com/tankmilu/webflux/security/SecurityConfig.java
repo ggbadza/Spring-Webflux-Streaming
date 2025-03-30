@@ -52,6 +52,7 @@ public class SecurityConfig {
                 .authorizeExchange(exchange -> exchange
 //                        .pathMatchers("/video/test").permitAll()   // 공개된 주소
 //                        .pathMatchers("/h2-console").permitAll()
+                        .pathMatchers(userUrl+"/login").permitAll()
                         .pathMatchers(userUrl+"/**").permitAll()
                         .anyExchange().authenticated()
                 )
@@ -65,13 +66,12 @@ public class SecurityConfig {
         return authenticationWebFilter;
     }
 
-    // 비밀번호 호출하는 오류 존재하여 jwt용으로 교체
-//    @Bean
-//    public ReactiveAuthenticationManager authenticationManager() {
-//        UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
-//        authManager.setPasswordEncoder(this.passwordEncoder());
-//        return authManager;
-//    }
+    @Bean
+    public ReactiveAuthenticationManager authenticationManager() {
+        UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
+        authManager.setPasswordEncoder(this.passwordEncoder());
+        return authManager;
+    }
 
     @Bean
     public ReactiveAuthenticationManager jwtReactiveAuthenticationManager() {

@@ -28,8 +28,17 @@ public class FileSystemServiceTest {
 
     @Test
     void fileSystemServiceTest_ExistsFiles() {
-        List<String> list = fileSystemService.getFileList("ani", 2L,"100").block();  // block()으로 결과 대기
+        AnimationFolderTreeEntity animationFolderTreeEntity = createTestFolder(99999L,"테스트","C:\\Log",0L,"100",true);
+
+        try{
+        folderTreeRepository.save(animationFolderTreeEntity).block();
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+        List<String> list = fileSystemService.getFileList("ani", 99999L,"100").block();  // block()으로 결과 대기
         System.out.println(list);
+        folderTreeRepository.delete(animationFolderTreeEntity).block();
+
     }
 
     @Test
@@ -80,13 +89,13 @@ public class FileSystemServiceTest {
     }
 
     private AnimationFolderTreeEntity createTestFolder(Long folderId, String name, String folderPath,
-                                                       Long parentFolderId, String permission, boolean hasFiles) {
+                                                       Long parentFolderId, String subscriptionCode, boolean hasFiles) {
         AnimationFolderTreeEntity folder = new AnimationFolderTreeEntity();
         ReflectionTestUtils.setField(folder, "folderId", folderId);
         ReflectionTestUtils.setField(folder, "name", name);
         ReflectionTestUtils.setField(folder, "folderPath", folderPath);
         ReflectionTestUtils.setField(folder, "parentFolderId", parentFolderId);
-        ReflectionTestUtils.setField(folder, "permission", permission);
+        ReflectionTestUtils.setField(folder, "subscriptionCode", subscriptionCode);
         ReflectionTestUtils.setField(folder, "hasFiles", hasFiles);
         ReflectionTestUtils.setField(folder, "isNewRecord",true);
         return folder;

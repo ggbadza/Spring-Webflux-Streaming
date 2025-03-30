@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 public class JwtAuthenticationConverter implements ServerAuthenticationConverter {
 
     private final JwtValidator jwtValidator;
+    private final ReactiveUserDetailsService userDetailsService;
 
     @Override
     public Mono<Authentication> convert(ServerWebExchange exchange) {
@@ -26,9 +28,11 @@ public class JwtAuthenticationConverter implements ServerAuthenticationConverter
             return Mono.empty();
         }
 
-        String userId = jwtValidator.extractUserId(token); //토큰 검증 후 ID 추출
-        Authentication auth = new UsernamePasswordAuthenticationToken(userId, null, new ArrayList<>());
-        return Mono.just(auth);
+        String userId = jwtValidator.extractUserId(token); // 토큰에서 사용자 ID 추출
+
+        // userDetailsService를 통해 실제 사용자 정보를 조회한 후, Authentication 객체를 생성
+        return userDetailsService.findByUsername(userId)
+                .map(userDetails -> new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities()));
     }
 
     // 헤더에서 토큰 추출

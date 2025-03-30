@@ -4,6 +4,7 @@ import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class UserController {
 
+    @Qualifier("authenticationManager")
     private final ReactiveAuthenticationManager authenticationManager;
 
     private final UserService userService;
