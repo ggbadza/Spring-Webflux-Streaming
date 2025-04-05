@@ -8,6 +8,7 @@ import com.tankmilu.webflux.record.UserRegRequests;
 import com.tankmilu.webflux.record.UserRegResponse;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
+import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.security.JwtProvider;
 import com.tankmilu.webflux.security.JwtValidator;
 import lombok.RequiredArgsConstructor;
@@ -184,9 +185,16 @@ public class UserService {
                 );
     }
 
-    public Mono<UserRegResponse> aboutMe(String userId){
-        return userRepository.findByUserId(userId)
-                .map(user -> new UserRegResponse(user.getUserId(),user.getUserName(),user.getSubscriptionCode(),"정상적으로 처리되었습니다."));
+    public Mono<UserRegResponse> aboutMe(CustomUserDetails userDetails){
+        return Mono.justOrEmpty(userDetails)
+                .flatMap(details -> userRepository.findByUserId(details.getUsername())
+                        .map(user -> new UserRegResponse(
+                                user.getUserId(),
+                                user.getUserName(),
+                                user.getSubscriptionCode(),
+                                "정상적으로 처리되었습니다."
+                        )))
+                .switchIfEmpty(Mono.just(new UserRegResponse(null, null, null, "유저 세션이 존재하지 않습니다.")));
     }
 
 }

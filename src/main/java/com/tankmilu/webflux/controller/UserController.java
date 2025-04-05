@@ -23,7 +23,6 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class UserController {
 
-    @Qualifier("authenticationManager")
     private final ReactiveAuthenticationManager authenticationManager;
 
     private final UserService userService;
@@ -101,7 +100,7 @@ public class UserController {
 
     @RequestMapping(value = "/me", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<UserRegResponse> aboutMe(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return userService.aboutMe(userDetails.getUsername());
+        return userService.aboutMe(userDetails);
     }
 
 
