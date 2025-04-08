@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.entity.folder;
 
 import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -46,6 +47,7 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     @Transient
     private boolean isNewRecord;
 
+
     @Override
     public Long getId() {
         return this.folderId;
@@ -55,5 +57,10 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     public boolean isNew() {
         return this.isNewRecord;
     }
+
+    @Transient
+    @Setter
+    private String changeCd;
+
 }
 
