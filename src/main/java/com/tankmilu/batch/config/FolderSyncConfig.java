@@ -2,12 +2,10 @@ package com.tankmilu.batch.config;
 
 import com.tankmilu.batch.repository.folder.AnimationFolderTreeRepository;
 import com.tankmilu.batch.repository.folder.DramaFolderTreeRepository;
-import com.tankmilu.batch.repository.folder.FolderTreeRepository;
 import com.tankmilu.batch.repository.folder.MovieFolderTreeRepository;
 import com.tankmilu.batch.tasklet.DataLoadTasklet;
 import com.tankmilu.batch.tasklet.DbUpdateTasklet;
 import com.tankmilu.batch.tasklet.DirectoryProcessTasklet;
-import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -41,8 +39,8 @@ public class FolderSyncConfig {
         return new JobBuilder("folderSyncJob", jobRepository)
                 .incrementer(new RunIdIncrementer())
                 .start(dataLoadStep(null, null))     // Step1: 데이터 로드
-                .next(directoryProcessStep(null))    // Step2: 디렉토리 처리
-                .next(dbUpdateStep())               // Step3: DB 업데이트
+                .next(directoryProcessStep(null,null))    // Step2: 디렉토리 처리
+                .next(dbUpdateStep(null))               // Step3: DB 업데이트
                 .build();
     }
 
@@ -63,18 +61,20 @@ public class FolderSyncConfig {
     @Bean
     @JobScope
     public Step directoryProcessStep(
+            @Value("#{jobParameters['type']}") String type,
             @Value("#{jobParameters['directoryPath']}") String path) {
 
         return new StepBuilder("directoryProcessStep", jobRepository)
-                .tasklet(directoryProcessTasklet(), transactionManager)
+                .tasklet(directoryProcessTasklet(type, path), transactionManager)
                 .build();
     }
 
     // Step 3 : DB 업데이트
     @Bean
-    public Step dbUpdateStep() {
+    public Step dbUpdateStep(
+            @Value("#{jobParameters['type']}") String type) {
         return new StepBuilder("dbUpdateStep", jobRepository)
-                .tasklet(dbUpdateTasklet(), transactionManager)
+                .tasklet(dbUpdateTasklet(type), transactionManager)
                 .build();
     }
 
@@ -87,7 +87,12 @@ public class FolderSyncConfig {
     public DataLoadTasklet dataLoadTasklet(
             @Value("#{jobParameters['type']}") String type) {
 
-        return new DataLoadTasklet(getRepositoryByType(type));
+        return switch (type) {
+            case "anime" -> new DataLoadTasklet(animationFolderTreeRepository);
+            case "movie" -> new DataLoadTasklet(movieFolderTreeRepository);
+            case "drama" -> new DataLoadTasklet(dramaFolderTreeRepository);
+            default -> throw new IllegalArgumentException("Invalid type: " + type);
+        };
     }
 
     @Bean
@@ -96,27 +101,25 @@ public class FolderSyncConfig {
             @Value("#{jobParameters['directoryPath']}") String path,
             @Value("#{jobParameters['type']}") String type) {
 
-        return new DirectoryProcessTasklet(
-                Path.of(path),
-                getRepositoryByType(type)
-        );
+        return switch (type) {
+            case "anime" -> new DirectoryProcessTasklet(Path.of(path),animationFolderTreeRepository, type);
+            case "movie" -> new DirectoryProcessTasklet(Path.of(path),movieFolderTreeRepository, type);
+            case "drama" -> new DirectoryProcessTasklet(Path.of(path),dramaFolderTreeRepository, type);
+            default -> throw new IllegalArgumentException("Invalid type: " + type);
+        };
     }
 
     @Bean
     @StepScope
-    public DbUpdateTasklet dbUpdateTasklet(
+    @SuppressWarnings("unchecked")
+    public DbUpdateTasklet<?> dbUpdateTasklet(
             @Value("#{jobParameters['type']}") String type) {
 
-        return new DbUpdateTasklet(getRepositoryByType(type));
-    }
-
-    // 타입별 레파지토리 선택
-    private FolderTreeRepository<? extends FolderTreeEntity> getRepositoryByType(String type) {
-        return switch (type.toLowerCase()) {
-            case "ani" -> animationFolderTreeRepository;
-            case "movie" -> movieFolderTreeRepository;
-            case "drama" -> dramaFolderTreeRepository;
-            default -> throw new IllegalArgumentException("존재하지 않는 타입 입니다 : " + type);
+        return switch (type) {
+            case "anime" -> new DbUpdateTasklet<>(animationFolderTreeRepository);
+            case "movie" -> new DbUpdateTasklet<>(movieFolderTreeRepository);
+            case "drama" -> new DbUpdateTasklet<>(dramaFolderTreeRepository);
+            default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }
 

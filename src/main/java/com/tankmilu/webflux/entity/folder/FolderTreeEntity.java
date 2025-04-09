@@ -1,7 +1,10 @@
 package com.tankmilu.webflux.entity.folder;
 
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -11,8 +14,9 @@ import org.springframework.data.relational.core.mapping.Column;
 
 import java.time.LocalDateTime;
 
-// 상속용 엔티티 테이블
 @Getter
+@SuperBuilder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class FolderTreeEntity implements Persistable<Long> {
     @Id
     @Column("folder_id")
@@ -46,7 +50,6 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
 
     @Transient
     private boolean isNewRecord;
-
 
     @Override
     public Long getId() {
