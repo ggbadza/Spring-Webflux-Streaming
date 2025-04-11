@@ -1,8 +1,9 @@
 package com.tankmilu.batch.tasklet;
 
-import com.tankmilu.batch.repository.folder.FolderTreeRepository;
 import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
+import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @AllArgsConstructor
 public class DbUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
 
@@ -30,7 +32,7 @@ public class DbUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
                         .get("folderMap");
 
         // DB 업데이트 로직
-        repository.saveAll(identifyUpdates(folderMap));
+        repository.saveAll(identifyUpdates(folderMap)).collectList().block();
 
 
         return RepeatStatus.FINISHED;

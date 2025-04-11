@@ -1,15 +1,16 @@
 package com.tankmilu.batch.config;
 
-import com.tankmilu.batch.repository.folder.AnimationFolderTreeRepository;
-import com.tankmilu.batch.repository.folder.DramaFolderTreeRepository;
-import com.tankmilu.batch.repository.folder.MovieFolderTreeRepository;
 import com.tankmilu.batch.tasklet.DataLoadTasklet;
 import com.tankmilu.batch.tasklet.DbUpdateTasklet;
 import com.tankmilu.batch.tasklet.DirectoryProcessTasklet;
 import com.tankmilu.webflux.entity.folder.AnimationFolderTreeEntity;
 import com.tankmilu.webflux.entity.folder.DramaFolderTreeEntity;
 import com.tankmilu.webflux.entity.folder.MovieFolderTreeEntity;
+import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.DramaFolderTreeRepository;
+import com.tankmilu.webflux.repository.folder.MovieFolderTreeRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobScope;
@@ -19,14 +20,19 @@ import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.nio.file.Path;
 
+@Slf4j
 @Configuration
 @RequiredArgsConstructor
+@EnableR2dbcRepositories(basePackages = "com.tankmilu.webflux.repository")
+@EntityScan(basePackages = "com.tankmilu.webflux.entity")
 public class FolderSyncConfig {
 
     private final JobRepository jobRepository;
@@ -52,7 +58,7 @@ public class FolderSyncConfig {
     @JobScope
     public Step dataLoadStep(
             @Value("#{jobParameters['type']}") String type) {
-
+            log.info("dataLoadStep!@#");
         return new StepBuilder("dataLoadStep", jobRepository)
                 .tasklet(dataLoadTasklet(type), transactionManager)
                 .build();
@@ -73,6 +79,7 @@ public class FolderSyncConfig {
 
     // Step 3 : DB 업데이트
     @Bean
+    @JobScope
     public Step dbUpdateStep(
             @Value("#{jobParameters['type']}") String type) {
         return new StepBuilder("dbUpdateStep", jobRepository)

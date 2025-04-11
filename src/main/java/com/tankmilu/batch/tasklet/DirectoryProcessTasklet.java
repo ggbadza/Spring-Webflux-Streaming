@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
 import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.*;
 
+@Slf4j
 @AllArgsConstructor
 public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Tasklet {
 
