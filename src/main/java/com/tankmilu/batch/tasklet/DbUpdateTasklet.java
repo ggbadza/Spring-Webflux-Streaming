@@ -30,22 +30,19 @@ public class DbUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
                         .get("folderMap");
 
         // DB 업데이트 로직
-        repository.deleteByIdIn(identifyDeletions(folderMap));
         repository.saveAll(identifyUpdates(folderMap));
 
 
         return RepeatStatus.FINISHED;
     }
 
+
     private List<T> identifyUpdates(Map<Long, T> map) {
         return map.values().stream()
-                .filter(e -> !"U".equals(e.getChangeCd()))
+                .filter(e -> !"U".equals(e.getChangeCd()) && !"N".equals(e.getChangeCd()))
                 .collect(Collectors.toList());
     }
 
-    private List<Long> identifyDeletions(Map<Long, T> map) {
-        return repository.findAllIds().stream()
-                .filter(id -> !map.containsKey(id))
-                .collect(Collectors.toList());
-    }
+
+
 }

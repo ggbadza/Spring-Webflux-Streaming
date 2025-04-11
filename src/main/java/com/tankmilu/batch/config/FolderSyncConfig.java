@@ -6,6 +6,9 @@ import com.tankmilu.batch.repository.folder.MovieFolderTreeRepository;
 import com.tankmilu.batch.tasklet.DataLoadTasklet;
 import com.tankmilu.batch.tasklet.DbUpdateTasklet;
 import com.tankmilu.batch.tasklet.DirectoryProcessTasklet;
+import com.tankmilu.webflux.entity.folder.AnimationFolderTreeEntity;
+import com.tankmilu.webflux.entity.folder.DramaFolderTreeEntity;
+import com.tankmilu.webflux.entity.folder.MovieFolderTreeEntity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -38,7 +41,7 @@ public class FolderSyncConfig {
     public Job folderSyncJob() {
         return new JobBuilder("folderSyncJob", jobRepository)
                 .incrementer(new RunIdIncrementer())
-                .start(dataLoadStep(null, null))     // Step1: 데이터 로드
+                .start(dataLoadStep(null))     // Step1: 데이터 로드
                 .next(directoryProcessStep(null,null))    // Step2: 디렉토리 처리
                 .next(dbUpdateStep(null))               // Step3: DB 업데이트
                 .build();
@@ -48,8 +51,7 @@ public class FolderSyncConfig {
     @Bean
     @JobScope
     public Step dataLoadStep(
-            @Value("#{jobParameters['type']}") String type,
-            @Value("#{jobParameters['directoryPath']}") String path) {
+            @Value("#{jobParameters['type']}") String type) {
 
         return new StepBuilder("dataLoadStep", jobRepository)
                 .tasklet(dataLoadTasklet(type), transactionManager)
@@ -86,7 +88,6 @@ public class FolderSyncConfig {
     @StepScope
     public DataLoadTasklet dataLoadTasklet(
             @Value("#{jobParameters['type']}") String type) {
-
         return switch (type) {
             case "anime" -> new DataLoadTasklet(animationFolderTreeRepository);
             case "movie" -> new DataLoadTasklet(movieFolderTreeRepository);
@@ -101,10 +102,47 @@ public class FolderSyncConfig {
             @Value("#{jobParameters['directoryPath']}") String path,
             @Value("#{jobParameters['type']}") String type) {
 
+        // 엔티티 팩토리 메소드를 람다 함수로 전달
         return switch (type) {
-            case "anime" -> new DirectoryProcessTasklet(Path.of(path),animationFolderTreeRepository, type);
-            case "movie" -> new DirectoryProcessTasklet(Path.of(path),movieFolderTreeRepository, type);
-            case "drama" -> new DirectoryProcessTasklet(Path.of(path),dramaFolderTreeRepository, type);
+            case "anime" -> new DirectoryProcessTasklet<AnimationFolderTreeEntity>(Path.of(path),
+                    (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
+                            AnimationFolderTreeEntity.builder()
+                                    .folderId(folderId)
+                                    .name(entityName)
+                                    .folderPath(entityPath)
+                                    .parentFolderId(parentId)
+                                    .subscriptionCode(subscriptionCode)
+                                    .createdAt(createdAt)
+                                    .modifiedAt(modifiedAt)
+                                    .hasFiles(hasFiles)
+                                    .isNewRecord(true)
+                                    .build());
+            case "movie" -> new DirectoryProcessTasklet<MovieFolderTreeEntity>(Path.of(path),
+                    (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
+                            MovieFolderTreeEntity.builder()
+                                    .folderId(folderId)
+                                    .name(entityName)
+                                    .folderPath(entityPath)
+                                    .parentFolderId(parentId)
+                                    .subscriptionCode(subscriptionCode)
+                                    .createdAt(createdAt)
+                                    .modifiedAt(modifiedAt)
+                                    .hasFiles(hasFiles)
+                                    .isNewRecord(true)
+                                    .build());
+            case "drama" -> new DirectoryProcessTasklet<DramaFolderTreeEntity>(Path.of(path),
+                    (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
+                            DramaFolderTreeEntity.builder()
+                                    .folderId(folderId)
+                                    .name(entityName)
+                                    .folderPath(entityPath)
+                                    .parentFolderId(parentId)
+                                    .subscriptionCode(subscriptionCode)
+                                    .createdAt(createdAt)
+                                    .modifiedAt(modifiedAt)
+                                    .hasFiles(hasFiles)
+                                    .isNewRecord(true)
+                                    .build());
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }

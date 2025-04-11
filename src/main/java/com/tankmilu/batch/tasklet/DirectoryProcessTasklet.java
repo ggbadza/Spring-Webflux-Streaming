@@ -3,11 +3,8 @@ package com.tankmilu.batch.tasklet;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.tankmilu.batch.repository.folder.FolderTreeRepository;
-import com.tankmilu.webflux.entity.folder.AnimationFolderTreeEntity;
-import com.tankmilu.webflux.entity.folder.DramaFolderTreeEntity;
 import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
-import com.tankmilu.webflux.entity.folder.MovieFolderTreeEntity;
+import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import lombok.AllArgsConstructor;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -18,23 +15,21 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 @AllArgsConstructor
-public class DirectoryProcessTasklet implements Tasklet {
+public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Tasklet {
 
     private final Path rootPath;
-    private final FolderTreeRepository<?> repository;
-    String type;
+    private final EntityBuilder<T> entityBuilder;
 
     @Override
     public RepeatStatus execute(StepContribution contribution,
                                 ChunkContext chunkContext) {
 
         // ExecutionContext에서 데이터 가져오기
-        Map<Long, FolderTreeEntity> folderMap =
-                (Map<Long, FolderTreeEntity>) chunkContext.getStepContext()
+        Map<Long, T> folderMap = (Map<Long, T>) chunkContext.getStepContext()
                         .getStepExecution()
                         .getJobExecution()
                         .getExecutionContext()
@@ -53,7 +48,7 @@ public class DirectoryProcessTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
-    private void processDirectory(Path rootPath, Map<Long, FolderTreeEntity> map) {
+    private void processDirectory(Path rootPath, Map<Long, T> map) {
         long nextKey = getNextKey(map);
         Queue<Path> queue = new LinkedList<>();
         queue.add(rootPath);
@@ -69,34 +64,36 @@ public class DirectoryProcessTasklet implements Tasklet {
                 // 2. map에 folder_id 존재 시 데이터 비교
                 if (map.containsKey(folderId)) {
                     FolderTreeEntity entity = map.get(folderId);
-                    boolean isChanged = checkChanges(currentDir, rootPath, entity);
-                    entity.setChangeCd(isChanged ? "Y" : "U"); // 변경되었을 경우 "Y", 변경사항 없을 시 "U"
+
+                    entity.setChangeCd(checkChanges(currentDir, rootPath, entity) ? "Y" : "U"); // 변경되었을 경우 "Y", 변경사항 없을 시 "U"
                 } else {
-                    // DB에 없는 폴더 (예외 처리 또는 로깅)
-                    System.err.println("Orphan folder detected: " + currentDir);
+                    // 3. DB에 없는 폴더의 경우 새로운 엔티티 생성
+                    T newEntity = createNewEntity(currentDir, rootPath, folderId);
+                    newEntity.setChangeCd("N"); // 새로 생성 할 경우 "N"
+                    map.put(folderId, newEntity);
                 }
             } else {
-                // 3. _folder_info.json 생성 및 새 엔티티 추가
+                // 4. _folder_info.json 생성 및 새 엔티티 추가
                 Long newFolderId = nextKey++;
                 writeFolderInfo(currentDir, newFolderId);
 
-                FolderTreeEntity newEntity = createNewEntity(currentDir, rootPath, newFolderId, type);
+                T newEntity = createNewEntity(currentDir, rootPath, newFolderId);
                 newEntity.setChangeCd("N"); // 새로 생성 할 경우 "N"
                 map.put(newFolderId, newEntity);
             }
 
-            // 4. 하위 디렉토리 BFS 탐색
+            // 5. 하위 디렉토리 BFS 탐색(폴더 넘버링 순서를 위해서)
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentDir, Files::isDirectory)) {
                 for (Path subDir : stream) {
                     queue.add(subDir);
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Directory access error: " + currentDir, e);
+                throw new RuntimeException("디렉토리 탐색에 실패하였습니다. : " + currentDir, e);
             }
         }
     }
 
-    public long getNextKey(Map<Long, FolderTreeEntity> map) {
+    public long getNextKey(Map<Long, T> map) {
         return Collections.max(map.keySet())+1;
     }
 
@@ -110,36 +107,38 @@ public class DirectoryProcessTasklet implements Tasklet {
             throw new RuntimeException(dir.toString()+" 경로에 _folder_info.json 파일 쓰기를 실패했습니다. ", e);
         }
     }
+
     // Entity 생성 메소드
-    private FolderTreeEntity createNewEntity(Path dir, Path rootDir, Long folderId, String type) {
-        FolderTreeEntity newEntity = null;
-        switch (type) {
-            case "anime" -> newEntity = AnimationFolderTreeEntity.builder()
-                    .folderId(folderId)
-                    .name(dir.getFileName().toString())
-                    .folderPath(dir.toString())
-                    .parentFolderId(getParentFolderId(dir.getParent(), rootDir))
-                    .subscriptionCode("default")
-                    .hasFiles(false)
-                    .build();
-            case "drama" -> newEntity = DramaFolderTreeEntity.builder()
-                    .folderId(folderId)
-                    .name(dir.getFileName().toString())
-                    .folderPath(dir.toString())
-                    .parentFolderId(getParentFolderId(dir.getParent(), rootDir))
-                    .subscriptionCode("default")
-                    .hasFiles(false)
-                    .build();
-            case "movie" -> newEntity = MovieFolderTreeEntity.builder()
-                    .folderId(folderId)
-                    .name(dir.getFileName().toString())
-                    .folderPath(dir.toString())
-                    .parentFolderId(getParentFolderId(dir.getParent(), rootDir))
-                    .subscriptionCode("default")
-                    .hasFiles(false)
-                    .build();
+    private T createNewEntity(Path dir, Path rootDir, long folderId) {
+        return entityBuilder.build(
+                folderId,
+                dir.getFileName().toString(),
+                dir.toString(),
+                getParentFolderId(dir.getParent(), rootDir),
+                "100",
+                LocalDateTime.now(),
+                LocalDateTime.now(),
+                hasFiles(dir)
+        );
+    }
+
+    // 해당 경로에 비디오 파일이 존재하는지 체크
+    private boolean hasFiles(Path dir) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+            for (Path path : stream) {
+                if (Files.isRegularFile(path)) {
+                    String fileName = path.getFileName().toString();
+                    // 정보 파일이 아니면서 동영상 파일인 경우
+                    if (!fileName.equals(".folder_info.json")
+                            && VideoExtensionEnum.isVideo(fileName)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // 예외 발생 시 false 반환
         }
-        return newEntity;
+        return false;
     }
 
     // Entity 객체와 디렉토리 상태 비교
@@ -168,5 +167,11 @@ public class DirectoryProcessTasklet implements Tasklet {
         } catch (IOException e) {
             throw new RuntimeException("JSON 읽기 실패", e);
         }
+    }
+
+    @FunctionalInterface
+    public interface EntityBuilder<E extends FolderTreeEntity> {
+        E build(Long folderId, String name, String folderPath, Long parentFolderId,
+                String subscriptionCode, LocalDateTime createdAt, LocalDateTime modifiedAt, boolean hasFiles);
     }
 }
