@@ -1,6 +1,8 @@
 package com.tankmilu.webflux.service;
 
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.buffer.DataBuffer;
+import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -17,8 +19,8 @@ public interface FFmpegService {
 
     InputStreamResource getInitData(String videoPath) throws IOException;
 
-    InputStreamResource getTsData(String videoPath, String start, String end) throws IOException;
-    InputStreamResource getTsData(String videoPath, String start, String end, String type) throws IOException;
+    Flux<DataBuffer> getTsData(String videoPath, String start, String end) throws IOException;
+    Flux<DataBuffer> getTsData(String videoPath, String start, String end, String type) throws IOException;
 
     InputStreamResource getFmp4Data(String videoPath, String start, String end, String type) throws IOException;
 }

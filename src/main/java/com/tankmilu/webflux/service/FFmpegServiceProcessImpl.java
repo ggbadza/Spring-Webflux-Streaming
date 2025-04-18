@@ -7,7 +7,13 @@ import net.bramp.ffmpeg.probe.FFmpegStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferFactory;
+import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -154,81 +160,117 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         }
     }
 
-    @Override
-    public InputStreamResource getTsData(String videoPath, String start, String to) throws IOException {
-        try {
-            // 비디오 파일 경로
-//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
-            log.info("Video path: {}", videoPath);
-            // FFmpeg 명령어 생성
-            ProcessBuilder processBuilder = new ProcessBuilder(
-                    ffmpegDir,
-                    "-ss", start, // ss가 앞에 있어야 인코딩 보다 오프셋 위치 먼저 찾아감
-                    "-i", videoPath,
-                    "-to", to,
-//                    "-to", Integer.valueOf(Integer.valueOf(start)+10).toString(),
-                    "-c:v", "libx265",
-                    "-preset", "fast",
-                    "-c:a", "aac",
-                    "-f", "mpegts",
-                    "-muxdelay", "0.1",
-                    "-copyts",                 // 원본 타임스탬프 유지
-                    "pipe:1"
-            );
+    public Flux<DataBuffer> getTsData(String videoPath, String start, String to) {
+        DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
-            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
-        } catch (Exception e) {
-            log.error("FFmpeg 에러: {}", e.getMessage(), e);
-            throw new IOException("FFmpeg 실행 에러", e);
-        }
+        return Flux.defer(() -> {
+                    ProcessBuilder pb = new ProcessBuilder(
+                            ffmpegDir,
+                            "-ss", start,
+                            "-i", videoPath,
+                            "-to", to,
+                            "-c:v", "libx265",
+                            "-preset", "fast",
+                            "-c:a", "aac",
+                            "-f", "mpegts",
+                            "-muxdelay", "0.1",
+                            "-copyts",
+                            "pipe:1"
+                    );
+                    Process process = null;
+                    try {
+                        process = pb.start();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    // stderr 로그를 별도 스레드에서 버려서 FFmpeg가 블록되지 않도록 구현
+                    Process finalProcess = process;
+                    Schedulers.boundedElastic().schedule(() -> {
+                        try (InputStream err = finalProcess.getErrorStream()) {
+                            byte[] buf = new byte[1024]; // 버퍼 크기
+                            while (err.read(buf) != -1) { /* 버퍼 비움 */ }
+                        } catch (IOException ignored) { }
+                    });
+
+                    // stdout은 DataBufferUtils 로 읽어서 Flux<DataBuffer>로 변환
+                    Flux<DataBuffer> videoFlux = DataBufferUtils.readInputStream(
+                            finalProcess::getInputStream,
+                            bufferFactory,
+                            4096
+                    );
+
+                    return videoFlux
+                            .doFinally(sig -> {
+                                if (finalProcess.isAlive()) finalProcess.destroyForcibly();
+                            });
+                })
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
-    public InputStreamResource getTsData(String videoPath, String start, String to, String type) throws IOException {
-        try {
-            // 비디오 파일 경로
-//            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
-            log.info("Video path: {}", videoPath);
 
-            // FFmpeg 명령어 생성
-            List<String> command = new ArrayList<>(Arrays.asList(
-                    ffmpegDir,
-                    "-ss", start,
-                    "-i", videoPath,
-                    "-c:v", "libx264",
-                    "-preset", "fast",
-                    "-to", to,
-                    "-c:a", "aac",
-                    "-f", "mpegts",
-                    "-muxdelay", "0.1",
-                    "-copyts",
-                    "pipe:1"
-            ));
+    public Flux<DataBuffer> getTsData(String videoPath, String start, String to, String type) {
+        DataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
-            // 해상도 옵션 동적으로 추가
-            if (type.equals("1")) {
-                command.add(command.indexOf("-c:v") + 2, "-vf");
-                command.add(command.indexOf("-c:v") + 3, "scale=-2:480");
-            } else if (type.equals("2")) {
-                command.add(command.indexOf("-c:v") + 2, "-vf");
-                command.add(command.indexOf("-c:v") + 3, "scale=-2:720");
-            } else if (type.equals("3")) {
-                command.add(command.indexOf("-c:v") + 2, "-vf");
-                command.add(command.indexOf("-c:v") + 3, "scale=-2:1080");
-            } else if (type.equals("4")) {
-                command.add(command.indexOf("-c:v") + 2, "-vf");
-                command.add(command.indexOf("-c:v") + 3, "scale=-2:1440");
-            }
+        return Flux.defer(() -> {
+                    List<String> command = new ArrayList<>(Arrays.asList(
+                            ffmpegDir,
+                            "-ss", start,
+                            "-i", videoPath,
+                            "-c:v", "libx264",
+                            "-preset", "fast",
+                            "-to", to,
+                            "-c:a", "aac",
+                            "-f", "mpegts",
+                            "-muxdelay", "0.1",
+                            "-copyts",
+                            "pipe:1"
+                    ));
 
-            log.info("command: {}", command);
+                    // 해상도 옵션 동적으로 추가
+                    if (type.equals("1")) {
+                        command.add(command.indexOf("-c:v") + 2, "-vf");
+                        command.add(command.indexOf("-c:v") + 3, "scale=-2:480");
+                    } else if (type.equals("2")) {
+                        command.add(command.indexOf("-c:v") + 2, "-vf");
+                        command.add(command.indexOf("-c:v") + 3, "scale=-2:720");
+                    } else if (type.equals("3")) {
+                        command.add(command.indexOf("-c:v") + 2, "-vf");
+                        command.add(command.indexOf("-c:v") + 3, "scale=-2:1080");
+                    } else if (type.equals("4")) {
+                        command.add(command.indexOf("-c:v") + 2, "-vf");
+                        command.add(command.indexOf("-c:v") + 3, "scale=-2:1440");
+                    }
 
-            // ProcessBuilder 생성
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
+                    ProcessBuilder pb = new ProcessBuilder(command);
+                    Process process;
+                    try {
+                        process = pb.start();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
 
-            return new InputStreamResource(executeCommand(processBuilder)); // 프로세스 출력 반환
-        } catch (Exception e) {
-            log.error("FFmpeg 에러: {}", e.getMessage(), e);
-            throw new IOException("FFmpeg 실행 에러", e);
-        }
+                    // stderr 로그를 별도 스레드에서 버려서 FFmpeg가 블록되지 않도록 구현
+                    Schedulers.boundedElastic().schedule(() -> {
+                        try (InputStream err = process.getErrorStream()) {
+                            byte[] buf = new byte[1024]; // 버퍼 크기
+                            while (err.read(buf) != -1) { /* 버퍼 비움 */ }
+                        } catch (IOException ignored) { }
+                    });
+
+                    // stdout은 DataBufferUtils 로 읽어서 Flux<DataBuffer>로 변환
+                    Flux<DataBuffer> videoFlux = DataBufferUtils.readInputStream(
+                            process::getInputStream,
+                            bufferFactory,
+                            4096
+                    );
+
+                    return videoFlux
+                            .doFinally(sig -> {
+                                if (process.isAlive()) process.destroyForcibly();
+                            });
+                })
+                .subscribeOn(Schedulers.boundedElastic());
     }
 
     public InputStreamResource getFmp4Data(String videoPath, String start, String to, String type) throws IOException {

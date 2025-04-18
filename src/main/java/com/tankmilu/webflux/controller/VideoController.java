@@ -4,17 +4,13 @@ import com.tankmilu.webflux.record.VideoMonoRecord;
 import com.tankmilu.webflux.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -328,29 +324,27 @@ public class VideoController {
                 });
     }
 
-    @GetMapping("${app.video.urls.hlsts}")
-    public Mono<ResponseEntity<InputStreamResource>> getTsVideo(
+    @GetMapping(
+            value    = "${app.video.urls.hlsts}",
+            produces = "video/mp2t"
+    )
+    public Flux<DataBuffer> getTsVideo(
             @RequestParam String fn,
             @RequestParam String ss,
             @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "0") String type) {
-        return Mono.fromCallable(() -> videoService.getHlsTs(fn, ss, to, type))
+            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
+
+        return videoService
+                .getHlsTs(fn, ss, to, type)
                 .subscribeOn(Schedulers.boundedElastic())
-                .map(data -> {
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp2t;");
-                    return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
                 .onErrorResume(e -> {
-                    // 에러 메시지를 InputStreamResource로 반환
-                    String errorMessage = "Error occurred: " + e.getMessage();
-                    InputStream errorStream = new ByteArrayInputStream(errorMessage.getBytes(StandardCharsets.UTF_8));
-                    InputStreamResource errorResource = new InputStreamResource(errorStream);
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain");
-                    return Mono.just(new ResponseEntity<>(errorResource, headers, HttpStatus.INTERNAL_SERVER_ERROR));
+                    String msg = "에러 발생 : " + e.getMessage();
+                    DataBuffer errorBuffer = new DefaultDataBufferFactory()
+                            .wrap(msg.getBytes(StandardCharsets.UTF_8));
+                    return Flux.just(errorBuffer);
                 });
     }
+
 
     @GetMapping("${app.video.urls.hlsfmp4}")
     public Mono<ResponseEntity<InputStreamResource>> getFmp4Video(

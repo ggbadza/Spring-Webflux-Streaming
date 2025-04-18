@@ -54,6 +54,7 @@ public class SecurityConfig {
 //                        .pathMatchers("/h2-console").permitAll()
 //                        .pathMatchers(userUrl+"/me").authenticated()
                         .pathMatchers(userUrl+"/**").permitAll()
+                        .pathMatchers("/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .build();
