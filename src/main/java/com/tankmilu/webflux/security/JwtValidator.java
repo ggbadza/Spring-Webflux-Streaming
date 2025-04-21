@@ -52,6 +52,16 @@ public class JwtValidator {
                 .get("sessionCode", String.class);
     }
 
+    // 토큰에서 subscriptionPlan 코드 추출
+    public String extractSubscriptionPlanCode(String accessToken) {
+        return Jwts.parser()
+                .verifyWith(jwtProvider.getSecretKeyHmac())
+                .build()
+                .parseSignedClaims(accessToken)
+                .getPayload()
+                .get("subscriptionPlan", String.class);
+    }
+
     // 토큰에서 클레임 추출
     public Claims extractAllClaims(String token) {
         return Jwts.parser()

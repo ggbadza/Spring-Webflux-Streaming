@@ -13,13 +13,13 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationConverter implements ServerAuthenticationConverter {
 
     private final JwtValidator jwtValidator;
-    private final ReactiveUserDetailsService userDetailsService;
 
     @Override
     public Mono<Authentication> convert(ServerWebExchange exchange) {
@@ -29,10 +29,18 @@ public class JwtAuthenticationConverter implements ServerAuthenticationConverter
         }
 
         String userId = jwtValidator.extractUserId(token); // 토큰에서 사용자 ID 추출
+        String subCode = jwtValidator.extractSessionCode(token);
+        List<GrantedAuthority> grantedAuthorities = new ArrayList<>();  // todo - Authorities 입력 필요
+
+        CustomUserDetails principal =
+                new CustomUserDetails(userId,        // username
+                        null,           // password (불필요)
+                        grantedAuthorities,
+                        subCode);
 
         // userDetailsService를 통해 실제 사용자 정보를 조회한 후, Authentication 객체를 생성
-        return userDetailsService.findByUsername(userId)
-                .map(userDetails -> new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities()));
+        return Mono.just(new UsernamePasswordAuthenticationToken(
+                principal, null, grantedAuthorities));
     }
 
     // 헤더에서 토큰 추출

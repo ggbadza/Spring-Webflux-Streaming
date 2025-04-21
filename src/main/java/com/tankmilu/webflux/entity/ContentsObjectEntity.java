@@ -1,11 +1,15 @@
 package com.tankmilu.webflux.entity;
 
 import lombok.Getter;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
+
+import java.time.LocalDateTime;
 
 @Table()
 public class ContentsObjectEntity implements Persistable<Long> {
@@ -27,6 +31,10 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Getter
     private String thumbnailPath;
 
+    @Column("release_year")
+    @Getter
+    private String releaseYear;
+
     @Column("type")
     @Getter
     private String type;
@@ -34,6 +42,14 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Column("folder_id")
     @Getter
     private Long folderId;
+
+    @CreatedDate
+    @Column("created_at")
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Column("modified_at")
+    private LocalDateTime modifiedAt;
 
     @Transient
     private boolean isNewRecord;

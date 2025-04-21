@@ -76,7 +76,7 @@ public class VideoController {
                     <script>
                         const video = document.getElementById('video');
                         const resolutionSelector = document.getElementById('resolution-selector');
-                        const manifestUri = 'http://61.79.45.11:8081/video/hls_m3u8_master?fn=video.mkv'; // HLS URL
+                        const manifestUri = 'http://127.0.0.1:8081/video/hls_m3u8_master?fn=C%3A%5CUsers%5Cggbad%5CDesktop%5Ctest%5Cvideo%5Cvideo.mp4'; // HLS URL
                 
                         if (Hls.isSupported()) {
                             const hls = new Hls();
@@ -183,7 +183,7 @@ public class VideoController {
                                    const video = document.getElementById('video');
                                    const logOutput = document.getElementById('log-output');
                                    const hls = new Hls({ debug: true }); // Debug 모드 활성화
-                                   const manifestUrl = 'http://127.0.0.1:8081/video/hls_m3u8_fmp4?fn=video.mp4&type=3'; // 테스트 m3u8 URL
+                                   const manifestUrl = 'http://127.0.0.1:8081/video/hls_m3u8_ts?fn=C%3A%5CUsers%5Cggbad%5CDesktop%5Ctest%5Cvideo%5Cvideo.mp4&type=3'; // 테스트 m3u8 URL
                 
                                    // 로그 출력 함수
                                    function log(message) {
