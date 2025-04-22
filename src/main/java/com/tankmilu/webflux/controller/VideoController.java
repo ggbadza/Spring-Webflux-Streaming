@@ -252,22 +252,17 @@ public class VideoController {
 
     @GetMapping("${app.video.urls.hlsm3u8}")
     public Mono<ResponseEntity<String>> getHlsM3u8(
-            @RequestParam String fn,
+            @RequestParam Long fileId,
             @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
-        return Mono.fromCallable(() -> videoService.getHlsM3u8(fn,type)) // 비동기 작업 래핑
-                .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
-                .map(data -> { // m3u8 텍스트를 ResponseEntity에 맵핑
+        return videoService.getHlsM3u8(fileId, type)   // Mono<String> 반환
+                .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL;");
+                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
-                .onErrorResume(e -> { // 에러 처리
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain;");
-                    return Mono.just(new ResponseEntity<>("IO ERROR", headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
+    @Deprecated
     @GetMapping("${app.video.urls.hlsm3u8fmp4}")
     public Mono<ResponseEntity<String>> getHlsM3u8Fmp4(
             @RequestParam String fn,
@@ -287,22 +282,39 @@ public class VideoController {
     }
 
     @GetMapping("${app.video.urls.hlsm3u8master}")
-    public Mono<ResponseEntity<String>> getHlsM3u8Master(
-            @RequestParam String fn) throws IOException {
-        return Mono.fromCallable(() -> videoService.getHlsM3u8Master(fn)) // 비동기 작업 래핑
-                .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
-                .map(data -> { // m3u8 텍스트를 ResponseEntity에 맵핑
+    public Mono<ResponseEntity<String>> getHlsM3u8Master(@RequestParam Long fileId) {
+        return videoService.getHlsM3u8Master(fileId)   // Mono<String> 반환
+                .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL;");
+                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
-                .onErrorResume(e -> { // 에러 처리
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain;");
-                    return Mono.just(new ResponseEntity<>("IO ERROR", headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
+
+
+    @GetMapping(
+            value    = "${app.video.urls.hlsts}",
+            produces = "video/mp2t"
+    )
+    public Flux<DataBuffer> getTsVideo(
+            @RequestParam Long fileId,
+            @RequestParam String ss,
+            @RequestParam String to,
+            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
+
+        return videoService
+                .getHlsTs(fileId, ss, to, type)
+                .subscribeOn(Schedulers.boundedElastic())
+                .onErrorResume(e -> {
+                    String msg = "에러 발생 : " + e.getMessage();
+                    DataBuffer errorBuffer = new DefaultDataBufferFactory()
+                            .wrap(msg.getBytes(StandardCharsets.UTF_8));
+                    return Flux.just(errorBuffer);
+                });
+    }
+
+    @Deprecated
     @GetMapping("${app.video.urls.hlsinit}")
     public Mono<ResponseEntity<InputStreamResource>> getInitVideo(
             @RequestParam String fn) throws IOException {
@@ -324,28 +336,7 @@ public class VideoController {
                 });
     }
 
-    @GetMapping(
-            value    = "${app.video.urls.hlsts}",
-            produces = "video/mp2t"
-    )
-    public Flux<DataBuffer> getTsVideo(
-            @RequestParam String fn,
-            @RequestParam String ss,
-            @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
-
-        return videoService
-                .getHlsTs(fn, ss, to, type)
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorResume(e -> {
-                    String msg = "에러 발생 : " + e.getMessage();
-                    DataBuffer errorBuffer = new DefaultDataBufferFactory()
-                            .wrap(msg.getBytes(StandardCharsets.UTF_8));
-                    return Flux.just(errorBuffer);
-                });
-    }
-
-
+    @Deprecated
     @GetMapping("${app.video.urls.hlsfmp4}")
     public Mono<ResponseEntity<InputStreamResource>> getFmp4Video(
             @RequestParam String fn,

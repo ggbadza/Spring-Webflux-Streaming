@@ -2,6 +2,7 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.enums.VideoResolutionEnum;
 import com.tankmilu.webflux.record.VideoMonoRecord;
+import com.tankmilu.webflux.repository.ContentsFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
+
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -35,6 +38,7 @@ public class VideoService {
     private static final int CHUNK_SIZE = 1024 * 1024 * 10;
 
     private final FFmpegService ffmpegService;
+    private final ContentsFileRepository contentsFileRepository;
 
     @Value("${app.video.urls.base}")
     public String videoBaseUrl;
@@ -174,37 +178,51 @@ public class VideoService {
         return m3u8Builder.toString();
     }
 
-    public String getHlsM3u8(String videoPath, String type) throws IOException {
-        Double videoDuration = ffmpegService.getVideoDuration(videoPath);
+    public Mono<String> getHlsM3u8(Long fileId, String type) throws IOException {
+        return contentsFileRepository.findById(fileId)
+                .flatMap(entity -> // IO에러 처리를 위해 flatMap -> fromCallable 사용
+                        Mono.fromCallable(() -> {
+                            String videoPath = entity.getFilePath();
+                            Double videoDuration = ffmpegService.getVideoDuration(videoPath);
 
-        StringBuilder m3u8Builder = new StringBuilder();
+                            StringBuilder m3u8Builder = new StringBuilder();
 
-        m3u8Builder.append("#EXTM3U\n");
-        m3u8Builder.append("#EXT-X-VERSION:7\n");
-        m3u8Builder.append("#EXT-X-TARGETDURATION:10\n");
-        m3u8Builder.append("#EXT-X-PLAYLIST-TYPE:VOD\n");
-        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:0\n");
-//        m3u8Builder.append("#EXT-X-MAP:URI="+"hlsinit?fn="+filename+"\n\n");
-//        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn=init2.mp4\n\n");
+                            m3u8Builder
+                                    .append("#EXTM3U\n")
+                                    .append("#EXT-X-VERSION:7\n")
+                                    .append("#EXT-X-TARGETDURATION:10\n")
+                                    .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
+                                    .append("#EXT-X-MEDIA-SEQUENCE:0\n");
+                            //        m3u8Builder.append("#EXT-X-MAP:URI="+"hlsinit?fn="+filename+"\n\n");
+                            //        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn=init2.mp4\n\n");
 
-        int nowTime = 0;
-        while (videoDuration > 0) {
-            if (videoDuration >= 10) {
-                m3u8Builder.append("#EXTINF:10,\n");
-                m3u8Builder.append(videoBaseUrl+hlstsUrl + "?fn=" + videoPath + "&ss=" + nowTime + "&to=" + (nowTime + 10) + "&type=" + type + "\n");
-            } else {
-                m3u8Builder.append("#EXTINF:" + videoDuration.toString() + "\n");
-                m3u8Builder.append(videoBaseUrl+hlstsUrl + "?fn=" + videoPath + "&ss=" + nowTime + "&to=" + (nowTime + videoDuration) + "&type=" + type + "\n");
-            }
-            nowTime += 10;
-            videoDuration -= 10;
-        }
+                            // 세그먼트 최대 길이(초)
+                            final int SEGMENT_LENGTH = 10;
 
-        m3u8Builder.append("\n");
-        m3u8Builder.append("#EXT-X-ENDLIST");
+                            for (double start = 0; start < videoDuration; start += SEGMENT_LENGTH) {
+                                // 남은 길이와 최대 길이 중 작은 값을 세그먼트 길이로 선택
+                                double duration = Math.min(SEGMENT_LENGTH, videoDuration - start);
+                                double endTime = start + duration;
 
-        return m3u8Builder.toString();
+                                m3u8Builder
+                                        .append("#EXTINF:").append(duration).append(",\n")
+                                        .append(videoBaseUrl).append(hlstsUrl)
+                                        .append("?fileId=").append(fileId)
+                                        .append("&ss=").append(start)
+                                        .append("&to=").append(endTime)
+                                        .append("&type=").append(type)
+                                        .append("\n");
+                            }
+                            m3u8Builder
+                                    .append("\n")
+                                    .append("#EXT-X-ENDLIST");
+                            return m3u8Builder.toString();
+                        })
+                        // ffmpegService 같은 블로킹 IO는 boundedElastic 스케줄러로 실행
+                        .subscribeOn(Schedulers.boundedElastic())
+                );
     }
+
 
     public String getHlsM3u8Fmp4(String videoPath, String type) throws IOException {
         Double videoDuration = ffmpegService.getVideoDuration(videoPath);
@@ -238,38 +256,54 @@ public class VideoService {
         return m3u8Builder.toString();
     }
 
-    public String getHlsM3u8Master(String videoPath) throws IOException {
-        StringBuilder m3u8Builder = new StringBuilder();
+    public Mono<String> getHlsM3u8Master(Long fileId) {
+        return contentsFileRepository.findById(fileId)
+                .flatMap(entity -> // IO에러 처리를 위해 flatMap -> fromCallable 사용
+                        Mono.fromCallable(() -> {
+                            String videoPath = entity.getFilePath();
+                            StringBuilder m3u8Builder = new StringBuilder();
+                            m3u8Builder.append("#EXTM3U\n");
+                            m3u8Builder.append("#EXT-X-VERSION:7\n");
 
-        m3u8Builder.append("#EXTM3U\n");
-        m3u8Builder.append("#EXT-X-VERSION:7\n");
+                            Map<String, String> videoMetaData = ffmpegService.getVideoMetaData(videoPath);
 
-        Map<String, String> videoMetaData = ffmpegService.getVideoMetaData(videoPath);
+                            // 지원 해상도 정보 추가
+                            for (VideoResolutionEnum resolution : VideoResolutionEnum.values()) {
+                                if (Integer.parseInt(videoMetaData.get("height")) >= resolution.getHeight()) {
+                                    m3u8Builder.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                                            .append(resolution.getBandwidth())
+                                            .append(",RESOLUTION=")
+                                            .append(resolution.getResolution())
+                                            .append("\n")
+                                            .append(videoBaseUrl).append(hlsm3u8Url)
+                                            .append("?fileId=").append(fileId)
+                                            .append("&type=").append(resolution.getType())
+                                            .append("\n");
+                                }
+                            }
 
-        // Enum 타입에 정의 된 해상도 지원
-        for (VideoResolutionEnum resolution : VideoResolutionEnum.values()) {
-            if(Integer.parseInt(videoMetaData.get("height"))>=resolution.getHeight()){
-                m3u8Builder.append("#EXT-X-STREAM-INF:BANDWIDTH=")
-                        .append(resolution.getBandwidth())
-                        .append(",RESOLUTION=")
-                        .append(resolution.getResolution())
-                        .append("\n");
-                m3u8Builder.append(videoBaseUrl+hlsm3u8Url + "?fn=" + videoPath + "&type=" + resolution.getType() + "\n");
-            }
-        }
+                            // 원본 해상도(지원 리스트에 없을 때) 추가
+                            int height = Integer.parseInt(videoMetaData.get("height"));
+                            if (!VideoResolutionEnum.isHeightSupported(height)) {
+                                m3u8Builder.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                                        .append(videoMetaData.get("bandwidth"))
+                                        .append(",RESOLUTION=")
+                                        .append(videoMetaData.get("width"))
+                                        .append("x").append(videoMetaData.get("height"))
+                                        .append("\n")
+                                        .append(videoBaseUrl).append(hlsm3u8Url)
+                                        .append("?fileId=").append(fileId)
+                                        .append("&type=0")
+                                        .append("\n");
+                            }
 
-        // 기본 해상도가 지원 해상도가 아닐 경우 원본 해상도 추가
-        if (videoMetaData.get("height") != null && !VideoResolutionEnum.isHeightSupported(Integer.parseInt(videoMetaData.get("height")))) {
-            m3u8Builder.append("#EXT-X-STREAM-INF:BANDWIDTH=")
-                    .append(videoMetaData.get("bandwidth"))
-                    .append(",RESOLUTION=")
-                    .append(videoMetaData.get("width") + "x" + videoMetaData.get("height"))
-                    .append("\n");
-            m3u8Builder.append(videoBaseUrl+hlsm3u8Url + "?fn=" + videoPath + "&type=0\n");
-        }
-
-        return m3u8Builder.toString();
+                            return m3u8Builder.toString();
+                        })
+                        // ffmpegService 같은 블로킹 IO는 boundedElastic 스케줄러로 실행
+                        .subscribeOn(Schedulers.boundedElastic())
+                );
     }
+
 
     public InputStreamResource getHlsInitData(String videoPath) throws IOException {
         return ffmpegService.getInitData(videoPath);
@@ -280,9 +314,18 @@ public class VideoService {
 //        return ffmpegService.getTsData(videoPath, start, end, type);
 //    }
 
-    public Flux<DataBuffer> getHlsTs(String videoPath, String start, String end, String type) throws IOException {
-        log.info("filename="+videoPath+",start="+start+",end="+end+",type="+type);
-        return ffmpegService.getTsData(videoPath, start, end, type);
+    public Flux<DataBuffer> getHlsTs(Long fileId, String start, String end, String type) throws IOException {
+        log.info("fileId="+fileId+",start="+start+",end="+end+",type="+type);
+        return contentsFileRepository.findById(fileId)
+                // Mono -> Flux 변환
+                .flatMapMany(contentsFileEntity ->
+                {
+                    try {
+                        return ffmpegService.getTsData(contentsFileEntity.getFilePath(),start,end,type);
+                    } catch (IOException e) {
+                        return Flux.error(e);
+                    }
+                });
     }
 
     public InputStreamResource getHlsFmp4(String videoPath, String start, String end, String type) throws IOException {
