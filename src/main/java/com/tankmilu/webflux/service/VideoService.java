@@ -9,9 +9,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DataBufferFactory;
+import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
@@ -25,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +42,10 @@ public class VideoService {
     private static final int CHUNK_SIZE = 1024 * 1024 * 10;
 
     private final FFmpegService ffmpegService;
+
     private final ContentsFileRepository contentsFileRepository;
+
+    private final DataBufferFactory dataBufferFactory;
 
     @Value("${app.video.urls.base}")
     public String videoBaseUrl;
@@ -57,6 +64,8 @@ public class VideoService {
 
     @Value("${app.video.urls.hlsfmp4}")
     public String hlsfmp4Url;
+
+
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader) {
         Path videoPath;
@@ -141,6 +150,8 @@ public class VideoService {
         rangeRes = "bytes " + finalStart + "-" + finalEnd + "/" + fileLength;
         return new VideoMonoRecord(contentType, rangeRes, contentLength, videoMono);
     }
+
+
 
     public String getHlsOriginal(String videoPath) throws IOException {
         List<List<String>> keyFrameStrings = ffmpegService.getVideoKeyFrame(videoPath);
@@ -327,6 +338,27 @@ public class VideoService {
                     }
                 });
     }
+
+    public Flux<DataBuffer> getSubtitle(Long fileId) {
+        return contentsFileRepository.findById(fileId)
+                // 파일이 없으면 404 에러 발생
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
+                .flatMapMany(entity -> {
+                    String subPath = entity.getSubtitlePath();
+                    // 경로가 Null 일시 404 에러 발생
+                    if (subPath == null) {
+                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+                    }
+                    Path path = Paths.get(subPath);
+                    // 파일 미존재 시 404 에러 발생
+                    if (!Files.exists(path)) {
+                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+                    }
+                    return DataBufferUtils.read(path, dataBufferFactory, 4096);
+                });
+    }
+
+
 
     public InputStreamResource getHlsFmp4(String videoPath, String start, String end, String type) throws IOException {
         log.info("filename="+videoPath+",start="+start+",end="+end+",type="+type);

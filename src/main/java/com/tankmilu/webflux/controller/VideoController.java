@@ -76,7 +76,7 @@ public class VideoController {
                     <script>
                         const video = document.getElementById('video');
                         const resolutionSelector = document.getElementById('resolution-selector');
-                        const manifestUri = 'http://127.0.0.1:8081/video/hls_m3u8_master?fn=C%3A%5CUsers%5Cggbad%5CDesktop%5Ctest%5Cvideo%5Cvideo.mp4'; // HLS URL
+                        const manifestUri = 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2'; // HLS URL
                 
                         if (Hls.isSupported()) {
                             const hls = new Hls();
@@ -129,104 +129,77 @@ public class VideoController {
     public Mono<String> testhls2() {
         return Mono.just("""
                 <!DOCTYPE html>
-                       <html lang="en">
-                       <head>
-                           <meta charset="UTF-8">
-                           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                           <title>HLS.js Test Player</title>
-                           <style>
-                               body {
-                                   display: flex;
-                                   justify-content: center;
-                                   align-items: center;
-                                   height: 100vh;
-                                   margin: 0;
-                                   background-color: #f4f4f4;
-                               }
-                               #video-container {
-                                   width: 80%;
-                                   max-width: 800px;
-                               }
-                               video {
-                                   width: 100%;
-                                   height: auto;
-                                   background-color: black;
-                               }
-                               .log-container {
-                                   margin-top: 20px;
-                                   max-width: 800px;
-                                   font-family: Arial, sans-serif;
-                                   font-size: 12px;
-                                   line-height: 1.5;
-                                   overflow: auto;
-                                   max-height: 200px;
-                                   background-color: #222;
-                                   color: #eee;
-                                   padding: 10px;
-                                   border-radius: 5px;
-                               }
-                           </style>
-                       </head>
-                       <body>
-                           <div id="video-container">
-                               <video id="video" controls autoplay></video>
-                           </div>
-                           <div id="log-container" class="log-container">
-                               <strong>Logs:</strong>
-                               <pre id="log-output"></pre>
-                           </div>
+                <html lang="ko">
+                <head>
+                  <meta charset="utf-8" />
+                  <title>Video.js 8 HLS 테스트</title>
                 
-                           <!-- HLS.js -->
-                           <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-                           <script>
-                               document.addEventListener('DOMContentLoaded', () => {
-                                   const video = document.getElementById('video');
-                                   const logOutput = document.getElementById('log-output');
-                                   const hls = new Hls({ debug: true }); // Debug 모드 활성화
-                                   const manifestUrl = 'http://127.0.0.1:8081/video/hls_m3u8_ts?fn=C%3A%5CUsers%5Cggbad%5CDesktop%5Ctest%5Cvideo%5Cvideo.mp4&type=3'; // 테스트 m3u8 URL
+                  <!-- 유지: Video.js 8 / 품질 선택 플러그인 -->
+                  <link  href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css" rel="stylesheet"/>
+                  <script src="https://cdn.jsdelivr.net/npm/video.js@8/dist/video.min.js"></script>
+                  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-quality-levels/4.1.0/videojs-contrib-quality-levels.min.js"></script>
+                  <link  href="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.css" rel="stylesheet"/>
+                  <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.min.js"></script>
                 
-                                   // 로그 출력 함수
-                                   function log(message) {
-                                       const timestamp = new Date().toLocaleTimeString();
-                                       logOutput.textContent += `[${timestamp}] ${message}\\n`;
-                                       logOutput.scrollTop = logOutput.scrollHeight; // 자동 스크롤
-                                   }
+                  <!-- SubtitlesOctopus (libass WASM) -->
+                  <!-- SubtitlesOctopus (libass-wasm) -->
+                  <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus.js"></script>
+                  <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus-worker.js"></script>
                 
-                                   // HLS.js 이벤트 핸들러
-                                   hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-                                       log(`Manifest loaded: ${data.levels.length} quality levels found.`);
-                                       video.play();
-                                   });
                 
-                                   hls.on(Hls.Events.ERROR, (event, data) => {
-                                       log(`Error: ${data.type} - ${data.details}`);
-                                       if (data.fatal) {
-                                           log('A fatal error occurred, stopping playback.');
-                                           hls.stopLoad();
-                                       }
-                                   });
                 
-                                   hls.on(Hls.Events.FRAG_LOADED, (event, data) => {
-                                       log(`Fragment loaded: SN=${data.frag.sn}, Level=${data.frag.level}`);
-                                   });
                 
-                                   // HLS.js 초기화
-                                   if (Hls.isSupported()) {
-                                       hls.loadSource(manifestUrl);
-                                       hls.attachMedia(video);
-                                       log('HLS.js is supported and initialized.');
-                                   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                       video.src = manifestUrl; // 네이티브 HLS 지원 브라우저(Safari 등)
-                                       log('Using native HLS playback.');
-                                   } else {
-                                       log('HLS is not supported on this browser.');
-                                   }
-                               });
-                           </script>
-                       </body>
-                       </html>
                 
+                
+                  <style>
+                    body { margin:0; background:#111; display:flex; align-items:center; justify-content:center; height:100vh; }
+                    #myPlayer { width:80vw; max-width:960px; }
+                  </style>
+                </head>
+                <body>
+                  <video
+                    id="myPlayer"
+                    class="video-js vjs-default-skin"
+                    controls
+                    crossorigin
+                    playsinline>
+                    <track kind="subtitles" label="한국어" srclang="ko" src="http://127.0.0.1:8081/video/subtitle?fileId=2" default>
+                  </video>
+                
+                  <script>
+                    const player = videojs('myPlayer', {
+                      sources: [{
+                        src: 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2',
+                        type: 'application/x-mpegURL'
+                      }],
+                      html5: {
+                        vhs: {
+                          overrideNative: true,         // 내장 HLS 대신 VHS 사용 강제
+                          enableLowInitialPlaylist: true
+                        }
+                      }
+                    });
+                
+                    player.ready(() => {
+                      // 해상도 메뉴
+                      player.hlsQualitySelector({ displayCurrentQuality: true });
+                      
+                      player.on('loadedmetadata', () => {
+                          new SubtitlesOctopus({
+                            video: player.el().querySelector('video'),   // 실제 <video> 엘리먼트
+                            subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2',
+                            workerUrl: 'http://127.0.0.1:8081/js/subtitles-octopus-worker.js',
+                
+                            fonts: ['http://127.0.0.1:8081/font/malgun.ttf'],         // 필요 시 폰트 배열
+                            debug: true});
+                      });
+                    });
+                    
+                    
+                  </script>
+                </body>
                 </html>
+                
                 """);
     }
 
@@ -312,6 +285,12 @@ public class VideoController {
                             .wrap(msg.getBytes(StandardCharsets.UTF_8));
                     return Flux.just(errorBuffer);
                 });
+    }
+
+    @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
+    public Flux<DataBuffer> getSubtitle(
+            @RequestParam Long fileId){
+        return videoService.getSubtitle(fileId);
     }
 
     @Deprecated
