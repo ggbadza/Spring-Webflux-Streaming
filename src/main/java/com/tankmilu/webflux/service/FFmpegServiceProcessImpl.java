@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.service;
 
+import com.tankmilu.webflux.record.SubtitleInfo;
 import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
@@ -20,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -55,6 +58,23 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
         log.info("ffmpeg probe result: {}", metaData);
         return metaData;
+    }
+
+    public List<SubtitleInfo> getSubtitleMetaData(String videoPath) throws IOException {
+        FFprobe ffprobe = new FFprobe(ffprobeDir);
+        FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
+
+        AtomicInteger counter = new AtomicInteger(0);
+
+        // subtitle 타입 스트림만 골라 Record로 맵핑
+        return probeResult.getStreams().stream()
+                .filter(stream -> stream.codec_type == FFmpegStream.CodecType.SUBTITLE)
+                .map(stream -> new SubtitleInfo(
+                        "v"+ counter.getAndIncrement(), // AtomicInteger를 이용해 스트림 내 가변변수 사용
+                        // tags가 null일 수 있으니 체크
+                        stream.tags != null ? stream.tags.get("language") : null
+                ))
+                .collect(Collectors.toList());
     }
 
     public InputStream executeCommand(ProcessBuilder processBuilder) throws IOException{
@@ -326,6 +346,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             log.error("FFmpeg 에러: {}", e.getMessage(), e);
             throw new IOException("FFmpeg 실행 에러", e);
         }
+    }
+
+    public Flux<DataBuffer> getSubtitleFromVideo(String videoPath, String subtitleId){
+        return Flux.empty();
     }
 
 }

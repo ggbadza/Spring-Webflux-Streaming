@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.service;
 
+import com.tankmilu.webflux.record.SubtitleInfo;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.buffer.DataBuffer;
 import reactor.core.publisher.Flux;
@@ -13,6 +14,8 @@ public interface FFmpegService {
 
     HashMap<String,String> getVideoMetaData(String videoPath) throws IOException;
 
+    List<SubtitleInfo> getSubtitleMetaData(String videoPath) throws IOException;
+
     List<List<String>> getVideoKeyFrame(String videoPath) throws IOException;
 
     Double getVideoDuration(String videoPath) throws IOException;
@@ -21,6 +24,8 @@ public interface FFmpegService {
 
     Flux<DataBuffer> getTsData(String videoPath, String start, String end) throws IOException;
     Flux<DataBuffer> getTsData(String videoPath, String start, String end, String type) throws IOException;
+
+    Flux<DataBuffer> getSubtitleFromVideo(String videoPath, String subtitleId) throws IOException;
 
     InputStreamResource getFmp4Data(String videoPath, String start, String end, String type) throws IOException;
 }

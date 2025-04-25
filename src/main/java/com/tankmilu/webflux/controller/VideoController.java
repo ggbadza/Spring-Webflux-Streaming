@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.record.SubtitleMetadataResponse;
 import com.tankmilu.webflux.record.VideoMonoRecord;
 import com.tankmilu.webflux.service.VideoService;
 import lombok.RequiredArgsConstructor;
@@ -128,79 +129,74 @@ public class VideoController {
     @GetMapping("/testhls2")
     public Mono<String> testhls2() {
         return Mono.just("""
-                <!DOCTYPE html>
-                <html lang="ko">
-                <head>
-                  <meta charset="utf-8" />
-                  <title>Video.js 8 HLS 테스트</title>
-                
-                  <!-- 유지: Video.js 8 / 품질 선택 플러그인 -->
-                  <link  href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css" rel="stylesheet"/>
-                  <script src="https://cdn.jsdelivr.net/npm/video.js@8/dist/video.min.js"></script>
-                  <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-quality-levels/4.1.0/videojs-contrib-quality-levels.min.js"></script>
-                  <link  href="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.css" rel="stylesheet"/>
-                  <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.min.js"></script>
-                
-                  <!-- SubtitlesOctopus (libass WASM) -->
-                  <!-- SubtitlesOctopus (libass-wasm) -->
-                  <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus.js"></script>
-                  <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus-worker.js"></script>
-                
-                
-                
-                
-                
-                
-                  <style>
-                    body { margin:0; background:#111; display:flex; align-items:center; justify-content:center; height:100vh; }
-                    #myPlayer { width:80vw; max-width:960px; }
-                  </style>
-                </head>
-                <body>
-                  <video
-                    id="myPlayer"
-                    class="video-js vjs-default-skin"
-                    controls
-                    crossorigin
-                    playsinline>
-                    <track kind="subtitles" label="한국어" srclang="ko" src="http://127.0.0.1:8081/video/subtitle?fileId=2" default>
-                  </video>
-                
-                  <script>
-                    const player = videojs('myPlayer', {
-                      sources: [{
-                        src: 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2',
-                        type: 'application/x-mpegURL'
-                      }],
-                      html5: {
-                        vhs: {
-                          overrideNative: true,         // 내장 HLS 대신 VHS 사용 강제
-                          enableLowInitialPlaylist: true
-                        }
-                      }
-                    });
-                
-                    player.ready(() => {
-                      // 해상도 메뉴
-                      player.hlsQualitySelector({ displayCurrentQuality: true });
-                      
-                      player.on('loadedmetadata', () => {
-                          new SubtitlesOctopus({
-                            video: player.el().querySelector('video'),   // 실제 <video> 엘리먼트
-                            subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2',
-                            workerUrl: 'http://127.0.0.1:8081/js/subtitles-octopus-worker.js',
-                
-                            fonts: ['http://127.0.0.1:8081/font/malgun.ttf'],         // 필요 시 폰트 배열
-                            debug: true});
-                      });
-                    });
-                    
-                    
-                  </script>
-                </body>
-                </html>
-                
-                """);
+                                                <!DOCTYPE html>
+                                               <html lang="ko">
+                                               <head>
+                                                 <meta charset="utf-8" />
+                                                 <title>Video.js 8 HLS 테스트</title>
+                                              \s
+                                                 <!-- 유지: Video.js 8 / 품질 선택 플러그인 -->
+                                                 <link  href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css" rel="stylesheet"/>
+                                                 <script src="https://cdn.jsdelivr.net/npm/video.js@8/dist/video.min.js"></script>
+                                                 <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-quality-levels/4.1.0/videojs-contrib-quality-levels.min.js"></script>
+                                                 <link  href="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.css" rel="stylesheet"/>
+                                                 <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.min.js"></script>
+                                              \s
+                                                 <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus.js"></script>
+                                              \s
+                                              \s
+                                              \s
+                                              \s
+                                              \s
+                                              \s
+                                                 <style>
+                                                   body { margin:0; background:#111; display:flex; align-items:center; justify-content:center; height:100vh; }
+                                                   #myPlayer { width:80vw; max-width:960px; }
+                                                 </style>
+                                               </head>
+                                               <body>
+                                                 <video
+                                                   id="myPlayer"
+                                                   class="video-js vjs-default-skin"
+                                                   controls
+                                                   crossorigin
+                                                   playsinline>
+                                                   <track kind="subtitles" label="한국어" srclang="ko" src="http://127.0.0.1:8081/video/subtitle?fileId=2" default>
+                                                 </video>
+                                              \s
+                                                 <script>
+                                                   const player = videojs('myPlayer', {
+                                                     sources: [{
+                                                       src: 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2',
+                                                       type: 'application/x-mpegURL'
+                                                     }],
+                                                     html5: {
+                                                       vhs: {
+                                                         overrideNative: true,         // 내장 HLS 대신 VHS 사용 강제
+                                                         enableLowInitialPlaylist: true
+                                                       }
+                                                     }
+                                                   });
+                                              \s
+                                                   player.ready(() => {
+                                                     // 해상도 메뉴
+                                                     player.hlsQualitySelector({ displayCurrentQuality: true });
+                                                    \s
+                                                     player.on('loadedmetadata', () => {
+                                                         new SubtitlesOctopus({
+                                                           video: player.el().querySelector('video'),   // 실제 <video> 엘리먼트
+                                                           subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2',
+                                                           workerUrl: 'http://127.0.0.1:8081/js/subtitles-octopus-worker.js',
+                                              \s
+                                                           fonts: ['http://127.0.0.1:8081/font/malgun.ttf'],         // 필요 시 폰트 배열
+                                                           debug: true});
+                                                     });
+                                                   });
+                                                  \s
+                                                  \s
+                                                 </script>
+                                               </body>
+                                               </html> """);
     }
 
 
@@ -275,7 +271,6 @@ public class VideoController {
             @RequestParam String ss,
             @RequestParam String to,
             @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
-
         return videoService
                 .getHlsTs(fileId, ss, to, type)
                 .subscribeOn(Schedulers.boundedElastic())
@@ -289,9 +284,17 @@ public class VideoController {
 
     @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
     public Flux<DataBuffer> getSubtitle(
-            @RequestParam Long fileId){
-        return videoService.getSubtitle(fileId);
+            @RequestParam Long fileId,
+            @RequestParam(required = false, defaultValue = "f0") String type){
+        return videoService.getSubtitle(fileId, type);
     }
+
+    @GetMapping(value = "${app.video.urls.subtitlemetadata}")
+    public Mono<SubtitleMetadataResponse> getSubtitleMetadata(
+            @RequestParam Long fileId){
+        return videoService.getSubtitleMetadata(fileId);
+    }
+
 
     @Deprecated
     @GetMapping("${app.video.urls.hlsinit}")
