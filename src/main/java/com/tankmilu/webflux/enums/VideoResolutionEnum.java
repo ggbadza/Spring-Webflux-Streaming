@@ -2,6 +2,9 @@ package com.tankmilu.webflux.enums;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Optional;
+
 @Getter
 public enum VideoResolutionEnum {
     RES_480P(854, 480, 800_000,"1"),
@@ -21,6 +24,12 @@ public enum VideoResolutionEnum {
         this.height = height;
         this.bandwidth = bandwidth;
         this.type = type;
+    }
+
+    public static Optional<VideoResolutionEnum> fromType(String type) {
+        return Arrays.stream(values())
+                .filter(r -> r.type.equals(type))
+                .findFirst();
     }
 
     public String getResolution() {

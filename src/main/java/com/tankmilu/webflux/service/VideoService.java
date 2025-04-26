@@ -343,39 +343,6 @@ public class VideoService {
                 });
     }
 
-    public Flux<DataBuffer> getSubtitle(Long fileId, String type) {
-        switch (type.charAt(0)) {
-            case 'f':
-                // “f” 로 시작하면 파일에서 자막을 읽어온다
-                return getSubtitleFromFile(fileId);
-            case 'v':
-                // “v” 로 시작하면 뒤에 오는 버전 문자열을 넘긴다
-                String subtitleId = type.substring(1);
-                return getSubtitleFromVideo(fileId, subtitleId);
-            default:
-                return Flux.error(new IllegalArgumentException("올바르지 않은 자막 타입입니다. type : " + type));
-        }
-    }
-
-    public Flux<DataBuffer> getSubtitleFromFile(Long fileId) {
-        return contentsFileRepository.findById(fileId)
-                // 파일이 없으면 404 에러 발생
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
-                .flatMapMany(entity -> {
-                    String subPath = entity.getSubtitlePath();
-                    // 경로가 Null 일시 404 에러 발생
-                    if (subPath == null) {
-                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-                    }
-                    Path path = Paths.get(subPath);
-                    // 파일 미존재 시 404 에러 발생
-                    if (!Files.exists(path)) {
-                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
-                    }
-                    return DataBufferUtils.read(path, dataBufferFactory, 4096);
-                });
-    }
-
     public Mono<SubtitleMetadataResponse> getSubtitleMetadata(Long fileId) {
         return contentsFileRepository.findById(fileId)
                 .map(entity -> {
@@ -402,7 +369,41 @@ public class VideoService {
                 });
     }
 
+    public Flux<DataBuffer> getSubtitle(Long fileId, String type) {
+        log.info("fileId="+fileId+",type="+type);
+        return switch (type.charAt(0)) {
+            case 'f' ->
+                // “f” 로 시작하면 파일에서 자막을 읽어온다
+                    getSubtitleFromFile(fileId);
+            case 'v' ->
+                // “v” 로 시작하면 뒤에 오는 버전 문자열을 넘긴다
+                getSubtitleFromVideo(fileId, type.substring(1));
+            default -> Flux.error(new IllegalArgumentException("올바르지 않은 자막 타입입니다. type : " + type));
+        };
+    }
+
+    public Flux<DataBuffer> getSubtitleFromFile(Long fileId) {
+        log.info("### getSubtitleFromFile. fileId="+fileId);
+        return contentsFileRepository.findById(fileId)
+                // 파일이 없으면 404 에러 발생
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
+                .flatMapMany(entity -> {
+                    String subPath = entity.getSubtitlePath();
+                    // 경로가 Null 일시 404 에러 발생
+                    if (subPath == null) {
+                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+                    }
+                    Path path = Paths.get(subPath);
+                    // 파일 미존재 시 404 에러 발생
+                    if (!Files.exists(path)) {
+                        return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+                    }
+                    return DataBufferUtils.read(path, dataBufferFactory, 4096);
+                });
+    }
+
     public Flux<DataBuffer> getSubtitleFromVideo(Long fileId, String subtitleId) {
+        log.info("### getSubtitleFromVideo. fileId="+fileId+",subtitleId="+subtitleId);
         return contentsFileRepository.findById(fileId)
                 // 파일이 없으면 404 에러 발생
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
@@ -415,8 +416,6 @@ public class VideoService {
                     }
                 });
     }
-
-
 
     public InputStreamResource getHlsFmp4(String videoPath, String start, String end, String type) throws IOException {
         log.info("filename="+videoPath+",start="+start+",end="+end+",type="+type);

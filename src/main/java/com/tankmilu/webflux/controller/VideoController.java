@@ -185,7 +185,7 @@ public class VideoController {
                                                      player.on('loadedmetadata', () => {
                                                          new SubtitlesOctopus({
                                                            video: player.el().querySelector('video'),   // 실제 <video> 엘리먼트
-                                                           subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2',
+                                                           subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2&type=v0',
                                                            workerUrl: 'http://127.0.0.1:8081/js/subtitles-octopus-worker.js',
                                               \s
                                                            fonts: ['http://127.0.0.1:8081/font/malgun.ttf'],         // 필요 시 폰트 배열
@@ -285,7 +285,7 @@ public class VideoController {
     @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
     public Flux<DataBuffer> getSubtitle(
             @RequestParam Long fileId,
-            @RequestParam(required = false, defaultValue = "f0") String type){
+            @RequestParam(required = false, defaultValue = "f") String type){
         return videoService.getSubtitle(fileId, type);
     }
 
