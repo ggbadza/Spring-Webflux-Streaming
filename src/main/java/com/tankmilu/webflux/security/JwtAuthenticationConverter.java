@@ -29,12 +29,12 @@ public class JwtAuthenticationConverter implements ServerAuthenticationConverter
         }
 
         String userId = jwtValidator.extractUserId(token); // 토큰에서 사용자 ID 추출
-        String subCode = jwtValidator.extractSessionCode(token);
+        String subCode = jwtValidator.extractSubscriptionPlanCode(token);
         List<GrantedAuthority> grantedAuthorities = new ArrayList<>();  // todo - Authorities 입력 필요
 
         CustomUserDetails principal =
                 new CustomUserDetails(userId,        // username
-                        null,           // password (불필요)
+                        "null",           // password (불필요)
                         grantedAuthorities,
                         subCode);
 
