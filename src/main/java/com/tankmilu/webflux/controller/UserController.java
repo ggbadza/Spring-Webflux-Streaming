@@ -4,7 +4,6 @@ import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.*;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,6 +26,12 @@ public class UserController {
 
     private final UserService userService;
 
+    /**
+     * 사용자 로그인을 처리함
+     * 
+     * @param loginRequest 로그인 요청 정보 (userId, password)
+     * @return 로그인 성공 여부와 JWT 토큰이 포함된 쿠키 반환
+     */
     @PostMapping("/login")
     public Mono<ResponseEntity<Boolean>> login(@RequestBody Mono<LoginRequestRecord> loginRequest) {
         return loginRequest.flatMap(request ->
@@ -44,6 +49,12 @@ public class UserController {
                 .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
     }
 
+    /**
+     * 액세스 토큰을 재발급함
+     * 
+     * @param exchange 서버 웹 교환 객체 (쿠키 정보 포함)
+     * @return 토큰 재발급 성공 여부와 새로운 JWT 토큰이 포함된 쿠키 반환
+     */
     @RequestMapping(value = "/reissue", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<Boolean>> reissue(ServerWebExchange exchange) {
         // 리프레시토큰 추출
@@ -60,7 +71,12 @@ public class UserController {
                 .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
     }
 
-    // jwt를 헤더로 변환해서 응답
+    /**
+     * JWT 토큰을 HTTP 응답 쿠키로 변환함
+     * 
+     * @param jwtResponse JWT 액세스 및 리프레시 토큰 정보
+     * @return 토큰이 쿠키로 포함된 HTTP 응답 객체
+     */
     private ResponseEntity<Boolean> buildTokenResponse(JwtAccessAndRefreshRecord jwtResponse){
         // 액세스 토큰 쿠키 생성
         ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwtResponse.accessToken())
@@ -85,8 +101,14 @@ public class UserController {
                 .body(true);
     }
 
+    /**
+     * 신규 사용자 등록을 처리함
+     * 
+     * @param registerRequest 사용자 등록 요청 정보
+     * @return 등록 결과 정보 반환
+     */
     @PostMapping("/register")
-    public Mono<ResponseEntity<UserRegResponse>> register(@RequestBody Mono<UserRegRequests> registerRequest) {
+    public Mono<ResponseEntity<UserRegResponse>> register(@RequestBody Mono<UserRegRequest> registerRequest) {
         return registerRequest
                 .flatMap(userRegRequests ->
                                 userService.register(userRegRequests)
@@ -98,6 +120,12 @@ public class UserController {
                 });
     }
 
+    /**
+     * 현재 인증된 사용자의 정보를 조회함
+     * 
+     * @param userDetails 인증된 사용자 상세 정보
+     * @return 사용자 프로필 정보 반환
+     */
     @RequestMapping(value = "/me", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<UserRegResponse> aboutMe(@AuthenticationPrincipal CustomUserDetails userDetails) {
         return userService.aboutMe(userDetails);

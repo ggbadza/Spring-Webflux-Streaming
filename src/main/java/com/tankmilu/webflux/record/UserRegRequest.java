@@ -1,6 +1,6 @@
 package com.tankmilu.webflux.record;
 
-public record UserRegRequests(
+public record UserRegRequest(
         String userId,
         String userName,
         String password,

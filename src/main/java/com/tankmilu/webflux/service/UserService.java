@@ -4,7 +4,7 @@ import com.tankmilu.webflux.entity.JwtRefreshTokenEntity;
 import com.tankmilu.webflux.entity.UserEntity;
 import com.tankmilu.webflux.record.JwtAccessAndRefreshRecord;
 import com.tankmilu.webflux.record.UserAuthRecord;
-import com.tankmilu.webflux.record.UserRegRequests;
+import com.tankmilu.webflux.record.UserRegRequest;
 import com.tankmilu.webflux.record.UserRegResponse;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
@@ -162,7 +162,7 @@ public class UserService {
 
 
     @Transactional
-    public Mono<UserRegResponse> register(UserRegRequests userRegRequests) {
+    public Mono<UserRegResponse> register(UserRegRequest userRegRequests) {
         return userRepository.findByUserId(userRegRequests.userId())
                 // 이미 존재하는 사용자라면 에러 반환
                 .flatMap(existingUser -> Mono.<UserEntity>error(new RuntimeException("동일한 ID가 존재합니다.")))

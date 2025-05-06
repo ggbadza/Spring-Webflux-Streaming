@@ -40,11 +40,18 @@ public class DbUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
 
 
     private List<T> identifyUpdates(Map<Long, T> map) {
-        return map.values().stream()
-                .filter(e -> !"U".equals(e.getChangeCd()) && !"N".equals(e.getChangeCd()))
-                .collect(Collectors.toList());
-    }
+        log.info("identifyUpdates 시작. 맵 크기: {}", map.size());
 
+        List<T> result = map.values().stream()
+                .filter(e -> {
+                    log.debug("Entity ID: {}, ChangeCd: {}", e.getFolderId(), e.getChangeCd());
+                    return "Y".equals(e.getChangeCd()) || "N".equals(e.getChangeCd());
+                })
+                .collect(Collectors.toList());
+
+        log.info("필터링된 엔티티 수: {}", result.size());
+        return result;
+    }
 
 
 }

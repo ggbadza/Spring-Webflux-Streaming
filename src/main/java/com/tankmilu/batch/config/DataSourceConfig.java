@@ -11,6 +11,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.datasource.init.DataSourceInitializer;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 import javax.sql.DataSource;
 
@@ -48,4 +51,19 @@ public class DataSourceConfig {
         return new DataSourceTransactionManager(ds);
     }
 
+    @Bean
+    public ResourceDatabasePopulator databasePopulator() {
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
+        populator.addScript(new ClassPathResource("org/springframework/batch/core/schema-mysql.sql"));
+        populator.setContinueOnError(true);
+        return populator;
+    }
+
+    @Bean
+    public DataSourceInitializer dataSourceInitializer(@Qualifier("dataSource") DataSource dataSource) {
+        DataSourceInitializer initializer = new DataSourceInitializer();
+        initializer.setDataSource(dataSource);
+        initializer.setDatabasePopulator(databasePopulator());
+        return initializer;
+    }
 }

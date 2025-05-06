@@ -2,6 +2,7 @@ package com.tankmilu.webflux.controller;
 
 import com.tankmilu.webflux.record.SubtitleMetadataResponse;
 import com.tankmilu.webflux.record.VideoMonoRecord;
+import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,176 +32,24 @@ public class VideoController {
 
     private final VideoService videoService;
 
+    /**
+     * API 연결 테스트용 엔드포인트
+     * 
+     * @return "test" 문자열 반환
+     */
     @GetMapping("/test")
     public Mono<String> test(){
         return Mono.just("test");
     }
 
-    @GetMapping("/testhls")
-    public Mono<String> testhls() {
-        return Mono.just("""
-                <!DOCTYPE html>
-                <html lang="en">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>HLS.js Resolution Selector</title>
-                    <style>
-                        body {
-                            font-family: Arial, sans-serif;
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            margin: 0;
-                            padding: 0;
-                            background-color: #f9f9f9;
-                        }
-                        video {
-                            width: 80%;
-                            max-width: 800px;
-                            margin: 20px 0;
-                        }
-                        select {
-                            font-size: 16px;
-                            padding: 8px 12px;
-                            margin-top: 10px;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <h1>HLS.js Resolution Selector</h1>
-                    <video id="video" controls></video>
-                    <select id="resolution-selector">
-                        <option value="auto">Auto</option>
-                    </select>
-                
-                    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-                    <script>
-                        const video = document.getElementById('video');
-                        const resolutionSelector = document.getElementById('resolution-selector');
-                        const manifestUri = 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2'; // HLS URL
-                
-                        if (Hls.isSupported()) {
-                            const hls = new Hls();
-                
-                            // Attach video element and load HLS source
-                            hls.loadSource(manifestUri);
-                            hls.attachMedia(video);
-                
-                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                const levels = hls.levels;
-                                resolutionSelector.innerHTML = '<option value="auto">Auto</option>';
-                
-                                // Populate resolution options
-                                levels.forEach((level, index) => {
-                                    const resolution = `${level.height}p`;
-                                    const option = document.createElement('option');
-                                    option.value = index;
-                                    option.textContent = resolution;
-                                    resolutionSelector.appendChild(option);
-                                });
-                
-                                console.log('Available resolutions:', levels);
-                            });
-                
-                            // Handle resolution change
-                            resolutionSelector.addEventListener('change', (event) => {
-                                const selectedIndex = event.target.value;
-                
-                                if (selectedIndex === 'auto') {
-                                    hls.currentLevel = -1; // Auto
-                                } else {
-                                    hls.currentLevel = parseInt(selectedIndex, 10); // Set to specific level
-                                }
-                            });
-                
-                            hls.on(Hls.Events.LEVEL_SWITCHED, (_, data) => {
-                                console.log(`Resolution switched to: ${hls.levels[data.level].height}p`);
-                            });
-                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                            // Fallback for Safari (native HLS support)
-                            video.src = manifestUri;
-                        }
-                    </script>
-                </body>
-                </html>
-                """);
-    }
-
-    @GetMapping("/testhls2")
-    public Mono<String> testhls2() {
-        return Mono.just("""
-                                                <!DOCTYPE html>
-                                               <html lang="ko">
-                                               <head>
-                                                 <meta charset="utf-8" />
-                                                 <title>Video.js 8 HLS 테스트</title>
-                                              \s
-                                                 <!-- 유지: Video.js 8 / 품질 선택 플러그인 -->
-                                                 <link  href="https://cdn.jsdelivr.net/npm/video.js@8/dist/video-js.min.css" rel="stylesheet"/>
-                                                 <script src="https://cdn.jsdelivr.net/npm/video.js@8/dist/video.min.js"></script>
-                                                 <script src="https://cdnjs.cloudflare.com/ajax/libs/videojs-contrib-quality-levels/4.1.0/videojs-contrib-quality-levels.min.js"></script>
-                                                 <link  href="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.css" rel="stylesheet"/>
-                                                 <script src="https://cdn.jsdelivr.net/npm/videojs-hls-quality-selector@2/dist/videojs-hls-quality-selector.min.js"></script>
-                                              \s
-                                                 <script src="https://cdn.jsdelivr.net/npm/libass-wasm@4.1.0/dist/js/subtitles-octopus.js"></script>
-                                              \s
-                                              \s
-                                              \s
-                                              \s
-                                              \s
-                                              \s
-                                                 <style>
-                                                   body { margin:0; background:#111; display:flex; align-items:center; justify-content:center; height:100vh; }
-                                                   #myPlayer { width:80vw; max-width:960px; }
-                                                 </style>
-                                               </head>
-                                               <body>
-                                                 <video
-                                                   id="myPlayer"
-                                                   class="video-js vjs-default-skin"
-                                                   controls
-                                                   crossorigin
-                                                   playsinline>
-                                                   <track kind="subtitles" label="한국어" srclang="ko" src="http://127.0.0.1:8081/video/subtitle?fileId=2" default>
-                                                 </video>
-                                              \s
-                                                 <script>
-                                                   const player = videojs('myPlayer', {
-                                                     sources: [{
-                                                       src: 'http://127.0.0.1:8081/video/hls_m3u8_master?fileId=2',
-                                                       type: 'application/x-mpegURL'
-                                                     }],
-                                                     html5: {
-                                                       vhs: {
-                                                         overrideNative: true,         // 내장 HLS 대신 VHS 사용 강제
-                                                         enableLowInitialPlaylist: true
-                                                       }
-                                                     }
-                                                   });
-                                              \s
-                                                   player.ready(() => {
-                                                     // 해상도 메뉴
-                                                     player.hlsQualitySelector({ displayCurrentQuality: true });
-                                                    \s
-                                                     player.on('loadedmetadata', () => {
-                                                         new SubtitlesOctopus({
-                                                           video: player.el().querySelector('video'),   // 실제 <video> 엘리먼트
-                                                           subUrl: 'http://127.0.0.1:8081/video/subtitle?fileId=2&type=v0',
-                                                           workerUrl: 'http://127.0.0.1:8081/js/subtitles-octopus-worker.js',
-                                              \s
-                                                           fonts: ['http://127.0.0.1:8081/font/malgun.ttf'],         // 필요 시 폰트 배열
-                                                           debug: true});
-                                                     });
-                                                   });
-                                                  \s
-                                                  \s
-                                                 </script>
-                                               </body>
-                                               </html> """);
-    }
-
-
+    /**
+     * 비디오 파일의 범위 요청을 처리함
+     * 
+     * @param fn 비디오 파일명
+     * @param bytes 요청 바이트 범위(선택적)
+     * @param rangeHeader HTTP Range 헤더 값
+     * @return 요청된 범위의 비디오 데이터 반환
+     */
     @GetMapping("${app.video.urls.filerange}")
     public Mono<ResponseEntity<Mono<DataBuffer>>> getVideoRange(
             @RequestParam String fn,
@@ -219,6 +69,13 @@ public class VideoController {
         );
     }
 
+    /**
+     * HLS m3u8 플레이리스트 파일을 제공함
+     * 
+     * @param fileId 비디오 파일 ID
+     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
+     * @return HLS m3u8 플레이리스트 콘텐츠 반환
+     */
     @GetMapping("${app.video.urls.hlsm3u8}")
     public Mono<ResponseEntity<String>> getHlsM3u8(
             @RequestParam Long fileId,
@@ -231,6 +88,13 @@ public class VideoController {
                 });
     }
 
+    /**
+     * fMP4 형식의 HLS m3u8 플레이리스트를 제공함 (미사용)
+     * 
+     * @param fn 비디오 파일명
+     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
+     * @return fMP4 형식의 HLS m3u8 플레이리스트 콘텐츠 반환
+     */
     @Deprecated
     @GetMapping("${app.video.urls.hlsm3u8fmp4}")
     public Mono<ResponseEntity<String>> getHlsM3u8Fmp4(
@@ -250,6 +114,12 @@ public class VideoController {
                 });
     }
 
+    /**
+     * HLS 마스터 플레이리스트를 제공함
+     * 
+     * @param fileId 비디오 파일 ID
+     * @return 다양한 해상도 옵션이 포함된 HLS 마스터 플레이리스트 반환
+     */
     @GetMapping("${app.video.urls.hlsm3u8master}")
     public Mono<ResponseEntity<String>> getHlsM3u8Master(@RequestParam Long fileId) {
         return videoService.getHlsM3u8Master(fileId)   // Mono<String> 반환
@@ -262,6 +132,15 @@ public class VideoController {
 
 
 
+    /**
+     * HLS TS(Transport Stream) 세그먼트 파일을 제공함
+     * 
+     * @param fileId 비디오 파일 ID
+     * @param ss 시작 시간(초)
+     * @param to 종료 시간(초)
+     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
+     * @return 요청된 시간 범위의 TS 세그먼트 데이터 반환
+     */
     @GetMapping(
             value    = "${app.video.urls.hlsts}",
             produces = "video/mp2t"
@@ -270,9 +149,10 @@ public class VideoController {
             @RequestParam Long fileId,
             @RequestParam String ss,
             @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
+            @RequestParam(required = false, defaultValue = "0") String type,
+            @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
         return videoService
-                .getHlsTs(fileId, ss, to, type)
+                .getHlsTs(fileId, ss, to, type, userDetails.getSubscriptionCode())
                 .subscribeOn(Schedulers.boundedElastic())
                 .onErrorResume(e -> {
                     String msg = "에러 발생 : " + e.getMessage();
@@ -282,6 +162,13 @@ public class VideoController {
                 });
     }
 
+    /**
+     * 비디오의 자막 파일을 제공함
+     * 
+     * @param fileId 비디오 파일 ID
+     * @param type 자막 유형 ("f" : 파일 타입, "v{number}": 비디오 내장 {number}번째 자막)
+     * @return 요청된 자막 파일 데이터 반환
+     */
     @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
     public Flux<DataBuffer> getSubtitle(
             @RequestParam Long fileId,
@@ -289,6 +176,12 @@ public class VideoController {
         return videoService.getSubtitle(fileId, type);
     }
 
+    /**
+     * 자막 파일의 메타데이터 정보를 제공함
+     * 
+     * @param fileId 비디오 파일 ID
+     * @return 자막 메타데이터 정보 반환
+     */
     @GetMapping(value = "${app.video.urls.subtitlemetadata}")
     public Mono<SubtitleMetadataResponse> getSubtitleMetadata(
             @RequestParam Long fileId){
@@ -296,6 +189,12 @@ public class VideoController {
     }
 
 
+    /**
+     * HLS 초기화 세그먼트를 제공함 (더 이상 사용되지 않음)
+     * 
+     * @param fn 비디오 파일명
+     * @return HLS 초기화 세그먼트 데이터 반환
+     */
     @Deprecated
     @GetMapping("${app.video.urls.hlsinit}")
     public Mono<ResponseEntity<InputStreamResource>> getInitVideo(
@@ -318,6 +217,15 @@ public class VideoController {
                 });
     }
 
+    /**
+     * HLS fMP4 세그먼트를 제공함 (더 이상 사용되지 않음)
+     * 
+     * @param fn 비디오 파일명
+     * @param ss 시작 시간(초)
+     * @param to 종료 시간(초)
+     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
+     * @return 요청된 시간 범위의 fMP4 세그먼트 데이터 반환
+     */
     @Deprecated
     @GetMapping("${app.video.urls.hlsfmp4}")
     public Mono<ResponseEntity<InputStreamResource>> getFmp4Video(

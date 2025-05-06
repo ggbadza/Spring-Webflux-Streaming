@@ -50,9 +50,6 @@ public enum SubscriptionCodeEnum {
     public static Boolean comparePermissionLevel(String userPermissionCode, String contentsPermissionCode) {
         SubscriptionCodeEnum userSubscription = fromPermissionLevel(userPermissionCode);
         SubscriptionCodeEnum contentsSubscription = fromPermissionLevel(contentsPermissionCode);
-        if (userSubscription.getPermissionLevel() <= contentsSubscription.getPermissionLevel() ) {
-            return true; // 유저 권한이 콘텐츠 권한보다 클 경우
-        }
-        return false; // 유저 권한이 콘텐츠 권한보다 작을 경우
+        return userSubscription.getPermissionLevel() <= contentsSubscription.getPermissionLevel(); // 유저 권한이 콘텐츠 권한 이상 일 경우 true, 유저 권한이 콘텐츠 권한보다 작을 경우 false
     }
 }

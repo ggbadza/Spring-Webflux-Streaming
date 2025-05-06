@@ -38,6 +38,9 @@ public class SecurityConfig {
     @Value("${app.user.urls.base}")
     private String userUrl;
 
+    @Value("${app.batch.urls.base}")
+    private String batchUrl;
+
     @Bean
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) throws Exception { // 웹플럭스 기반 필터체인 클래스
         return http
@@ -54,6 +57,7 @@ public class SecurityConfig {
 //                        .pathMatchers("/h2-console").permitAll()
 //                        .pathMatchers(userUrl+"/me").authenticated()
                         .pathMatchers(userUrl+"/**").permitAll()
+                        .pathMatchers(batchUrl+"/**").permitAll()
                         .pathMatchers("/**").permitAll()
                         .anyExchange().authenticated()
                 )

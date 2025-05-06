@@ -25,9 +25,11 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     @Column("name")
     private String name;
 
+    @Setter
     @Column("folder_path")
     private String folderPath;
 
+    @Setter
     @Column("parent_folder_id")
     private Long parentFolderId;
 
@@ -38,7 +40,7 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     @Column("created_at")
     private LocalDateTime createdAt;
 
-    @LastModifiedDate
+    @Setter
     @Column("modified_at")
     private LocalDateTime modifiedAt;
 

@@ -22,7 +22,6 @@ public class DataLoadTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution,
                                 ChunkContext chunkContext) {
-        log.info("TEST");
         // DB에서 데이터 로드
         List<? extends FolderTreeEntity> entities = repository.findAll().collectList().block();
         Map<Long, FolderTreeEntity> folderMap = new HashMap<>();

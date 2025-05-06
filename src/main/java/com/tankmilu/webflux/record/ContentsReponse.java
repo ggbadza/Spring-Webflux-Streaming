@@ -5,6 +5,7 @@ public record ContentsReponse(
         String title,
         String description,
         String thumbnailUrl,
+        String posterUrl,
         String type,
         Long folderId) {
 }

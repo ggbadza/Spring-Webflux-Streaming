@@ -1,7 +1,7 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.UserEntity;
-import com.tankmilu.webflux.record.UserRegRequests;
+import com.tankmilu.webflux.record.UserRegRequest;
 import com.tankmilu.webflux.repository.JwtRefreshTokenRepository;
 import com.tankmilu.webflux.repository.UserRepository;
 import com.tankmilu.webflux.security.JwtValidator;
@@ -56,7 +56,7 @@ class UserServiceTest {
     @Test
     void registerTest_IdExists() {
         transactionalOperator.execute(status -> {
-                    UserRegRequests request = new UserRegRequests("existingUser", "userName", "password", "test");
+                    UserRegRequest request = new UserRegRequest("existingUser", "userName", "password", "test");
 
                     return userService.register(request)
                             .then(userService.register(request)); // 중복 등록 시도
@@ -69,7 +69,7 @@ class UserServiceTest {
 
     @Test
     void registerTest_IdNotExists() {
-        UserRegRequests request = new UserRegRequests("newUser", "userName", "password", "test");
+        UserRegRequest request = new UserRegRequest("newUser", "userName", "password", "test");
 
         StepVerifier.create(
                 transactionalOperator.execute(status ->

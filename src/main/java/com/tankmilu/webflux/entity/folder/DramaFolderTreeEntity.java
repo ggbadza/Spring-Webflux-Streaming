@@ -6,9 +6,11 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.io.Serializable;
+
 @Getter
 @Table()
 @SuperBuilder
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DramaFolderTreeEntity extends FolderTreeEntity {
+public class DramaFolderTreeEntity extends FolderTreeEntity implements Serializable {
 }

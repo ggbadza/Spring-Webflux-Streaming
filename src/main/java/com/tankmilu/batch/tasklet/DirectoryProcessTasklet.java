@@ -16,7 +16,11 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Slf4j
@@ -67,7 +71,7 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
                 if (map.containsKey(folderId)) {
                     FolderTreeEntity entity = map.get(folderId);
 
-                    entity.setChangeCd(checkChanges(currentDir, rootPath, entity) ? "Y" : "U"); // 변경되었을 경우 "Y", 변경사항 없을 시 "U"
+                    updateEntityIfChanged(currentDir, rootPath, entity);
                 } else {
                     // 3. DB에 없는 폴더의 경우 새로운 엔티티 생성
                     T newEntity = createNewEntity(currentDir, rootPath, folderId);
@@ -96,7 +100,12 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
     }
 
     public long getNextKey(Map<Long, T> map) {
-        return Collections.max(map.keySet())+1;
+        try {
+            return Collections.max(map.keySet()) + 1;
+        } catch (NoSuchElementException e) {
+            return 1L;
+        }
+
     }
 
     // _folder_info.json 쓰기
@@ -112,6 +121,15 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
 
     // Entity 생성 메소드
     private T createNewEntity(Path dir, Path rootDir, long folderId) {
+        LocalDateTime fileModifiedTime;
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(dir, BasicFileAttributes.class);
+            FileTime lastModifiedTime = attrs.lastModifiedTime();
+            fileModifiedTime = LocalDateTime.ofInstant(lastModifiedTime.toInstant(), ZoneId.systemDefault());
+
+        } catch (Exception e) {
+            fileModifiedTime=LocalDateTime.now();
+        }
         return entityBuilder.build(
                 folderId,
                 dir.getFileName().toString(),
@@ -119,7 +137,7 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
                 getParentFolderId(dir.getParent(), rootDir),
                 "100",
                 LocalDateTime.now(),
-                LocalDateTime.now(),
+                fileModifiedTime,
                 hasFiles(dir)
         );
     }
@@ -131,7 +149,7 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
                 if (Files.isRegularFile(path)) {
                     String fileName = path.getFileName().toString();
                     // 정보 파일이 아니면서 동영상 파일인 경우
-                    if (!fileName.equals(".folder_info.json")
+                    if (!fileName.equals("_folder_info.json")
                             && VideoExtensionEnum.isVideo(fileName)) {
                         return true;
                     }
@@ -143,22 +161,64 @@ public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Task
         return false;
     }
 
-    // Entity 객체와 디렉토리 상태 비교
-    private boolean checkChanges(Path dir, Path rootDir, FolderTreeEntity entity) {
-        // 이름, 경로, 부모ID 비교
-        String currentName = dir.getFileName().toString();
+    // Entity 객체와 디렉토리 상태 비교 및 업데이트
+    private FolderTreeEntity updateEntityIfChanged(Path dir, Path rootDir, FolderTreeEntity entity) {
+        // 경로, 부모ID 비교
         String currentPath = dir.toString();
         Long currentParentId = getParentFolderId(dir.getParent(), rootDir);
+        long minutesDiff;
+        
+        // 파일 수정 시간 가져오기
+        try {
+            BasicFileAttributes attrs = Files.readAttributes(dir, BasicFileAttributes.class);
+            FileTime lastModifiedTime = attrs.lastModifiedTime();
+            LocalDateTime fileModifiedTime = LocalDateTime.ofInstant(lastModifiedTime.toInstant(), ZoneId.systemDefault());
+            // 엔티티의 수정 시간
+            LocalDateTime entityModifiedTime = entity.getModifiedAt();
 
-        return !currentName.equals(entity.getName()) ||
-                !currentPath.equals(entity.getFolderPath()) ||
-                !Objects.equals(currentParentId, entity.getParentFolderId());
+            // 수정 시간 차이 계산 (분 단위)
+            minutesDiff = Math.abs(
+                    ChronoUnit.MINUTES.between(entityModifiedTime, fileModifiedTime));
+        } catch (Exception e) {
+            minutesDiff = 0;
+        }
+
+        // 경로가 변경된 경우
+        if (!currentPath.equals(entity.getFolderPath())) {
+            entity.setFolderPath(currentPath);
+            entity.setChangeCd("Y");
+            log.info(entity +"경로 변경 됨");
+        }
+
+        // 부모 ID가 변경된 경우
+        if (!Objects.equals(currentParentId, entity.getParentFolderId())) {
+            entity.setParentFolderId(currentParentId);
+            entity.setChangeCd("Y");
+            log.info(entity +"부모 ID 변경 됨");
+        }
+        // 수정 시간 차이가 1분 이상인 경우
+        if (minutesDiff >= 1) {
+            try {
+                BasicFileAttributes attrs = Files.readAttributes(dir, BasicFileAttributes.class);
+                FileTime lastModifiedTime = attrs.lastModifiedTime();
+                LocalDateTime fileModifiedTime = LocalDateTime.ofInstant(lastModifiedTime.toInstant(), ZoneId.systemDefault());
+                entity.setModifiedAt(fileModifiedTime);
+                entity.setChangeCd("Y");
+                log.info(entity.getModifiedAt() +"수정시간 변경 됨");
+            } catch (Exception e) {
+                log.info(entity +"수정시간 변경 됨, 에러 발생");
+                // 예외 발생 시 무시
+            }
+        }
+
+        // 변경 여부와 관계없이 항상 엔티티 반환
+        return entity;
     }
 
     // 상위 폴더 Id 받는 메소드
     private Long getParentFolderId(Path parentDir, Path rootDir) {
         if (parentDir == null || !parentDir.startsWith(rootDir)) return null;
-        Path parentInfo = parentDir.resolve(".folder_info.json");
+        Path parentInfo = parentDir.resolve("_folder_info.json");
         return Files.exists(parentInfo) ? readFolderIdFromJson(parentInfo) : null;
     }
 

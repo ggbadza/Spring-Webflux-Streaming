@@ -86,7 +86,7 @@ public class FileSystemService {
                     .subscribeOn(Schedulers.boundedElastic());
     }
 
-    public Mono<List<DirectoryRecord>> getFolderAndFilesList(String type, Long parentId,String userPlan) {
+    public Mono<List<DirectoryRecord>> getFolderAndFilesList(String type, Long parentId, String userPlan) {
         FolderTreeRepository<? extends FolderTreeEntity> folderTreeRepository = getFolderTreeRepository(type);
 
         Mono<List<DirectoryRecord>> foldersMono = getFolderList(type, parentId, userPlan);

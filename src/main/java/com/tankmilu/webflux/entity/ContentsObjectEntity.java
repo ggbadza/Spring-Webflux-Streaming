@@ -27,9 +27,13 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Getter
     private String description;
 
-    @Column("thumbnail_path")
+    @Column("thumbnail_url")
     @Getter
-    private String thumbnailPath;
+    private String thumbnailUrl;
+
+    @Column("poster_url")
+    @Getter
+    private String posterUrl;
 
     @Column("release_year")
     @Getter

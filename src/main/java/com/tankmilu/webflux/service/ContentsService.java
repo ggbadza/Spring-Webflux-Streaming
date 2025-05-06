@@ -20,7 +20,8 @@ public class ContentsService {
                         contentsObject.getContentsId(),
                         contentsObject.getTitle(),
                         contentsObject.getDescription(),
-                        contentsObject.getThumbnailPath(),
+                        contentsObject.getThumbnailUrl(),
+                        contentsObject.getPosterUrl(),
                         contentsObject.getType(),
                         contentsObject.getFolderId()
                 ));

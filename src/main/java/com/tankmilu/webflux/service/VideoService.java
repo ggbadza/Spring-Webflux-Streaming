@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.ContentsFileEntity;
+import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.enums.VideoResolutionEnum;
 import com.tankmilu.webflux.record.SubtitleInfo;
 import com.tankmilu.webflux.record.SubtitleMetadataResponse;
@@ -18,6 +19,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpRange;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
@@ -329,14 +331,17 @@ public class VideoService {
 //        return ffmpegService.getTsData(videoPath, start, end, type);
 //    }
 
-    public Flux<DataBuffer> getHlsTs(Long fileId, String start, String end, String type) throws IOException {
-        log.info("fileId="+fileId+",start="+start+",end="+end+",type="+type);
-        return contentsFileRepository.findById(fileId)
+    public Flux<DataBuffer> getHlsTs(Long fileId, String start, String end, String type, String userPlan) {
+        log.info("fileId={},start={},end={},type={}, userPlan={}", fileId, start, end, type, userPlan);
+        return contentsFileRepository.findFileWithContentInfo(fileId)
                 // Mono -> Flux 변환
-                .flatMapMany(contentsFileEntity ->
+                .flatMapMany(fileInfo  ->
                 {
+                    if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
+                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                    }
                     try {
-                        return ffmpegService.getTsData(contentsFileEntity.getFilePath(),start,end,type);
+                        return ffmpegService.getTsData(fileInfo.getFullPath(),start,end,type);
                     } catch (IOException e) {
                         return Flux.error(e);
                     }
