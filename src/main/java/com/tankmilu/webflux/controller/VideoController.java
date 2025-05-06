@@ -172,8 +172,9 @@ public class VideoController {
     @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
     public Flux<DataBuffer> getSubtitle(
             @RequestParam Long fileId,
-            @RequestParam(required = false, defaultValue = "f") String type){
-        return videoService.getSubtitle(fileId, type);
+            @RequestParam(required = false, defaultValue = "f") String type,
+            @AuthenticationPrincipal CustomUserDetails userDetails){
+        return videoService.getSubtitle(fileId, type, userDetails.getSubscriptionCode());
     }
 
     /**
@@ -184,8 +185,9 @@ public class VideoController {
      */
     @GetMapping(value = "${app.video.urls.subtitlemetadata}")
     public Mono<SubtitleMetadataResponse> getSubtitleMetadata(
-            @RequestParam Long fileId){
-        return videoService.getSubtitleMetadata(fileId);
+            @RequestParam Long fileId,
+            @AuthenticationPrincipal CustomUserDetails userDetails){
+        return videoService.getSubtitleMetadata(fileId, userDetails.getSubscriptionCode());
     }
 
 

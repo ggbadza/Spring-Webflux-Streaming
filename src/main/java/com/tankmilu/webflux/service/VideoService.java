@@ -341,24 +341,27 @@ public class VideoService {
                         throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
                     }
                     try {
-                        return ffmpegService.getTsData(fileInfo.getFullPath(),start,end,type);
+                        return ffmpegService.getTsData(fileInfo.getFullFilePath(),start,end,type);
                     } catch (IOException e) {
                         return Flux.error(e);
                     }
                 });
     }
 
-    public Mono<SubtitleMetadataResponse> getSubtitleMetadata(Long fileId) {
-        return contentsFileRepository.findById(fileId)
-                .map(entity -> {
+    public Mono<SubtitleMetadataResponse> getSubtitleMetadata(Long fileId, String userPlan) {
+        return contentsFileRepository.findFileWithContentInfo(fileId)
+                .map(fileInfo -> {
                     List<SubtitleInfo> subtitleInfoList = new ArrayList<>();
+                    if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
+                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                    }
                     // 실제 자막 파일 존재시 첫 번째 항목에 추가
-                    if (entity.getSubtitlePath() != null) {
+                    if (fileInfo.subtitlePath() != null) {
                         subtitleInfoList.add(new SubtitleInfo("f", "kor"));
                     }
                     // 비디오 내부 자막 스트림 정보 추가
                     try {
-                        subtitleInfoList.addAll(ffmpegService.getSubtitleMetaData(entity.getFilePath()));
+                        subtitleInfoList.addAll(ffmpegService.getSubtitleMetaData(fileInfo.getFullFilePath()));
                     } catch (IOException e) {
                         log.error("getSubtitleMetadata", e);
                     }
@@ -374,31 +377,34 @@ public class VideoService {
                 });
     }
 
-    public Flux<DataBuffer> getSubtitle(Long fileId, String type) {
+    public Flux<DataBuffer> getSubtitle(Long fileId, String type, String userPlan) {
         log.info("fileId="+fileId+",type="+type);
         return switch (type.charAt(0)) {
             case 'f' ->
                 // “f” 로 시작하면 파일에서 자막을 읽어온다
-                    getSubtitleFromFile(fileId);
+                    getSubtitleFromFile(fileId, userPlan);
             case 'v' ->
                 // “v” 로 시작하면 뒤에 오는 버전 문자열을 넘긴다
-                getSubtitleFromVideo(fileId, type.substring(1));
+                getSubtitleFromVideo(fileId, type.substring(1), userPlan);
             default -> Flux.error(new IllegalArgumentException("올바르지 않은 자막 타입입니다. type : " + type));
         };
     }
 
-    public Flux<DataBuffer> getSubtitleFromFile(Long fileId) {
+    public Flux<DataBuffer> getSubtitleFromFile(Long fileId, String userPlan) {
         log.info("### getSubtitleFromFile. fileId="+fileId);
-        return contentsFileRepository.findById(fileId)
+        return contentsFileRepository.findFileWithContentInfo(fileId)
                 // 파일이 없으면 404 에러 발생
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
-                .flatMapMany(entity -> {
-                    String subPath = entity.getSubtitlePath();
+                .flatMapMany(fileInfo -> {
+                    // 권한 미 존재시 에러 발생
+                    if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
+                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                    }
                     // 경로가 Null 일시 404 에러 발생
-                    if (subPath == null) {
+                    if (fileInfo.subtitlePath() == null) {
                         return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
                     }
-                    Path path = Paths.get(subPath);
+                    Path path = Paths.get(fileInfo.getFullSubtitlePath());
                     // 파일 미존재 시 404 에러 발생
                     if (!Files.exists(path)) {
                         return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -407,15 +413,18 @@ public class VideoService {
                 });
     }
 
-    public Flux<DataBuffer> getSubtitleFromVideo(Long fileId, String subtitleId) {
+    public Flux<DataBuffer> getSubtitleFromVideo(Long fileId, String subtitleId, String userPlan) {
         log.info("### getSubtitleFromVideo. fileId="+fileId+",subtitleId="+subtitleId);
-        return contentsFileRepository.findById(fileId)
+        return contentsFileRepository.findFileWithContentInfo(fileId)
                 // 파일이 없으면 404 에러 발생
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
-                .flatMapMany(entity -> {
-                    String videoPath = entity.getFilePath();
+                .flatMapMany(fileInfo -> {
+                    // 권한 미 존재시 에러 발생
+                    if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
+                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                    }
                     try {
-                        return ffmpegService.getSubtitleFromVideo(videoPath, subtitleId);
+                        return ffmpegService.getSubtitleFromVideo(fileInfo.getFullFilePath(), subtitleId);
                     } catch (IOException e) {
                         return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
                     }
