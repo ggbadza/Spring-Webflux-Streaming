@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @AllArgsConstructor
-public class DbUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
+public class FolderEntityUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
 
     private final FolderTreeRepository<T> repository;
 

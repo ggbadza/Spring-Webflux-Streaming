@@ -15,7 +15,7 @@ import java.util.Map;
 
 @Slf4j
 @AllArgsConstructor
-public class DataLoadTasklet implements Tasklet {
+public class FolderDataLoadTasklet implements Tasklet {
 
     private final FolderTreeRepository<?> repository;
 

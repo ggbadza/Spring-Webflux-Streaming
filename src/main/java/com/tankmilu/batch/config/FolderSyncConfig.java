@@ -1,8 +1,8 @@
 package com.tankmilu.batch.config;
 
-import com.tankmilu.batch.tasklet.DataLoadTasklet;
-import com.tankmilu.batch.tasklet.DbUpdateTasklet;
-import com.tankmilu.batch.tasklet.DirectoryProcessTasklet;
+import com.tankmilu.batch.tasklet.FolderDataLoadTasklet;
+import com.tankmilu.batch.tasklet.FolderEntityUpdateTasklet;
+import com.tankmilu.batch.tasklet.FolderDirectoryProcessTasklet;
 import com.tankmilu.webflux.entity.folder.AnimationFolderTreeEntity;
 import com.tankmilu.webflux.entity.folder.DramaFolderTreeEntity;
 import com.tankmilu.webflux.entity.folder.MovieFolderTreeEntity;
@@ -31,8 +31,6 @@ import java.nio.file.Path;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@EnableR2dbcRepositories(basePackages = "com.tankmilu.webflux.repository")
-@EntityScan(basePackages = "com.tankmilu.webflux.entity")
 public class FolderSyncConfig {
 
     private final JobRepository jobRepository;
@@ -93,25 +91,25 @@ public class FolderSyncConfig {
 
     @Bean
     @StepScope
-    public DataLoadTasklet dataLoadTasklet(
+    public FolderDataLoadTasklet dataLoadTasklet(
             @Value("#{jobParameters['type']}") String type) {
         return switch (type) {
-            case "anime" -> new DataLoadTasklet(animationFolderTreeRepository);
-            case "movie" -> new DataLoadTasklet(movieFolderTreeRepository);
-            case "drama" -> new DataLoadTasklet(dramaFolderTreeRepository);
+            case "anime" -> new FolderDataLoadTasklet(animationFolderTreeRepository);
+            case "movie" -> new FolderDataLoadTasklet(movieFolderTreeRepository);
+            case "drama" -> new FolderDataLoadTasklet(dramaFolderTreeRepository);
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }
 
     @Bean
     @StepScope
-    public DirectoryProcessTasklet directoryProcessTasklet(
+    public FolderDirectoryProcessTasklet directoryProcessTasklet(
             @Value("#{jobParameters['directoryPath']}") String path,
             @Value("#{jobParameters['type']}") String type) {
 
         // 엔티티 팩토리 메소드를 람다 함수로 전달
         return switch (type) {
-            case "anime" -> new DirectoryProcessTasklet<AnimationFolderTreeEntity>(Path.of(path),
+            case "anime" -> new FolderDirectoryProcessTasklet<AnimationFolderTreeEntity>(Path.of(path),
                     (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
                             AnimationFolderTreeEntity.builder()
                                     .folderId(folderId)
@@ -124,7 +122,7 @@ public class FolderSyncConfig {
                                     .hasFiles(hasFiles)
                                     .isNewRecord(true)
                                     .build());
-            case "movie" -> new DirectoryProcessTasklet<MovieFolderTreeEntity>(Path.of(path),
+            case "movie" -> new FolderDirectoryProcessTasklet<MovieFolderTreeEntity>(Path.of(path),
                     (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
                             MovieFolderTreeEntity.builder()
                                     .folderId(folderId)
@@ -137,7 +135,7 @@ public class FolderSyncConfig {
                                     .hasFiles(hasFiles)
                                     .isNewRecord(true)
                                     .build());
-            case "drama" -> new DirectoryProcessTasklet<DramaFolderTreeEntity>(Path.of(path),
+            case "drama" -> new FolderDirectoryProcessTasklet<DramaFolderTreeEntity>(Path.of(path),
                     (folderId, entityName, entityPath, parentId, subscriptionCode, createdAt, modifiedAt, hasFiles) ->
                             DramaFolderTreeEntity.builder()
                                     .folderId(folderId)
@@ -157,13 +155,13 @@ public class FolderSyncConfig {
     @Bean
     @StepScope
     @SuppressWarnings("unchecked")
-    public DbUpdateTasklet<?> dbUpdateTasklet(
+    public FolderEntityUpdateTasklet<?> dbUpdateTasklet(
             @Value("#{jobParameters['type']}") String type) {
 
         return switch (type) {
-            case "anime" -> new DbUpdateTasklet<>(animationFolderTreeRepository);
-            case "movie" -> new DbUpdateTasklet<>(movieFolderTreeRepository);
-            case "drama" -> new DbUpdateTasklet<>(dramaFolderTreeRepository);
+            case "anime" -> new FolderEntityUpdateTasklet<>(animationFolderTreeRepository);
+            case "movie" -> new FolderEntityUpdateTasklet<>(movieFolderTreeRepository);
+            case "drama" -> new FolderEntityUpdateTasklet<>(dramaFolderTreeRepository);
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }

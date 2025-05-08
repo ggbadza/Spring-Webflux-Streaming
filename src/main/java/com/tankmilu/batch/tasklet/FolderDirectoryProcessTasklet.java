@@ -25,7 +25,7 @@ import java.util.*;
 
 @Slf4j
 @AllArgsConstructor
-public class DirectoryProcessTasklet<T extends FolderTreeEntity> implements Tasklet {
+public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implements Tasklet {
 
     private final Path rootPath;
     private final EntityBuilder<T> entityBuilder;
