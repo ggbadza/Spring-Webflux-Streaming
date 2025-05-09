@@ -1,11 +1,10 @@
-# Build stage
-FROM openjdk:21 AS build
-WORKDIR /build
+# 첫 번째 스테이지: 빌드 스테이지
+FROM gradle:jdk21 AS builder
+WORKDIR /app
 COPY . .
-RUN ./gradlew clean build -x test
+RUN gradle build -x test
 
-
-# Run stage
+# 두 번째 스테이지: 실행 스테이지
 FROM openjdk:21
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar
