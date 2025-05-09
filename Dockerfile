@@ -5,8 +5,12 @@ COPY . .
 RUN gradle build -x test
 
 # 두 번째 스테이지: 실행 스테이지
-FROM openjdk:21
+FROM eclipse-temurin:21-alpine
 WORKDIR /app
+
+# FFmpeg 설치
+RUN apk add --no-cache ffmpeg
+
 COPY --from=builder /app/build/libs/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","app.jar"]
