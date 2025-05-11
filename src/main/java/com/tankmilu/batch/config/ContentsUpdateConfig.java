@@ -1,7 +1,9 @@
 package com.tankmilu.batch.config;
 
+import com.tankmilu.batch.tasklet.ContentsFileSaveTasklet;
 import com.tankmilu.batch.tasklet.ContentsToFileUpdateTasklet;
 import com.tankmilu.batch.tasklet.FolderToContentsUpdateTasklet;
+import com.tankmilu.webflux.entity.ContentsFileEntity;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
@@ -18,21 +20,22 @@ import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.reactive.TransactionalOperator;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class ContentsUpdateConfig {
 
-
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
-
+    private final TransactionalOperator transactionalOperator;
 
     // 레파지토리 주입
     private final AnimationFolderTreeRepository animationFolderTreeRepository;
@@ -79,23 +82,34 @@ public class ContentsUpdateConfig {
     public Job contentsToFileJob() {
         return new JobBuilder("contentsToFileJob", jobRepository)
                 .incrementer(new RunIdIncrementer())
-                .start(contentsToFileStep(null, null))
+                .start(contentsToFileUpdateStep(null, null))
+                .next(contentsFileSaveStep()) // 파일 저장 단계 추가 - 트랜잭션 처리
                 .build();
     }
 
     @Bean
     @JobScope
-    public Step contentsToFileStep(
+    public Step contentsToFileUpdateStep(
             @Value("#{jobParameters['type']}") String type,
             @Value("#{jobParameters['folderId']}") Long folderId) {
-        return new StepBuilder("contentsToFileStep", jobRepository)
+        return new StepBuilder("contentsToFileUpdateStep", jobRepository)
                 .tasklet(contentsToFileTasklet(type, folderId), transactionManager)
+                .build();
+    }
+
+
+    // DB 저장 단계
+    @Bean
+    @JobScope
+    public Step contentsFileSaveStep() {
+        return new StepBuilder("contentsFileSaveStep", jobRepository)
+                .tasklet(contentsFileSaveTasklet(), transactionManager)
                 .build();
     }
 
     @Bean
     @StepScope
-    public ContentsToFileUpdateTasklet contentsToFileTasklet(
+    public ContentsToFileUpdateTasklet<?> contentsToFileTasklet(
             @Value("#{jobParameters['type']}") String type,
             @Value("#{jobParameters['folderId']}") Long folderId) {
         return switch (type) {
@@ -106,4 +120,10 @@ public class ContentsUpdateConfig {
         };
     }
 
+
+    @Bean
+    @StepScope
+    public ContentsFileSaveTasklet contentsFileSaveTasklet() {
+        return new ContentsFileSaveTasklet(contentsFileRepository, transactionalOperator);
+    }
 }

@@ -65,6 +65,16 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
 
             // 1. _folder_info.json 존재 여부 확인
             if (Files.exists(infoFile)) {
+                try {
+                    if (!(Boolean) Files.getAttribute(infoFile, "dos:hidden")) {
+                        Files.setAttribute(infoFile, "dos:hidden", true);
+                    }
+                } catch (Exception e) {
+                // 숨김 속성 설정 실패해도 계속 진행
+                    log.debug("숨김 속성 설정 실패 (무시됨): '{}', \nERROR : {}", infoFile,e.getMessage());
+                }
+
+
                 Long folderId = readFolderIdFromJson(infoFile);
 
                 // 2. map에 folder_id 존재 시 데이터 비교
@@ -108,12 +118,33 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
 
     }
 
+
+
     // _folder_info.json 쓰기
     private void writeFolderInfo(Path dir, Long folderId) {
         try {
+            // 디렉토리가 존재하는지 확인하고, 존재하지 않으면 생성
+            if (!Files.exists(dir)) {
+                Files.createDirectories(dir);
+                log.info("디렉토리를 생성했습니다: {}", dir);
+            }
+
+            
             ObjectNode jsonNode = new ObjectMapper().createObjectNode();
             jsonNode.put("folder_id", folderId);
-            new ObjectMapper().writeValue(dir.resolve("_folder_info.json").toFile(), jsonNode);
+
+            // 파일 경로 변수 선언
+            Path filePath = dir.resolve("_folder_info.json");
+
+            new ObjectMapper().writeValue(filePath.toFile(), jsonNode);
+
+            // 숨김 속성 설정 시도
+            try {
+                Files.setAttribute(filePath, "dos:hidden", true);
+            } catch (Exception e) {
+                // 숨김 속성 설정 실패해도 계속 진행
+                log.debug("숨김 속성 설정 실패 (무시됨): {}", e.getMessage());
+            }
         } catch (IOException e) {
             throw new RuntimeException(dir.toString()+" 경로에 _folder_info.json 파일 쓰기를 실패했습니다. ", e);
         }

@@ -8,7 +8,8 @@ import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
-import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -16,7 +17,6 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Slf4j
-@AllArgsConstructor
+@RequiredArgsConstructor
+@Getter
 public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements Tasklet {
 
     private final FolderTreeRepository<T> folderRepository;
@@ -33,6 +34,11 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
     private final ContentsFileRepository fileRepository;
     private final String type;
     private final Long folderId;
+    
+    // 배치 결과를 저장할 리스트 생성
+    private final List<ContentsFileEntity> filesToInsert = new ArrayList<>();
+    private final List<ContentsFileEntity> filesToUpdate = new ArrayList<>();
+    private final List<ContentsFileEntity> filesToDelete = new ArrayList<>();
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
@@ -77,14 +83,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
         log.info("기존 파일 엔티티 수: {}", allFiles != null ? allFiles.size() : 0);
 
         // 3. 각 콘텐츠오브젝트에 대해 파일 검색 및 콘텐츠파일엔티티 업데이트
-        List<ContentsFileEntity> filesToInsert = new ArrayList<>();
-        List<ContentsFileEntity> filesToDelete = new ArrayList<>();
-        List<ContentsFileEntity> filesToUpdate = new ArrayList<>();
-
-        // 이 부분 수정해야함
         /*
-        todo - dirPath 폴더 내에 있는 파일들에 대해
-
             1) 동영상 파일을 전부 검사
             2) 만약 동영상 파일이 존재한다면 자막 파일의 존재를 검사(자막은 동영상과 동일한 이름에 확장자만 자막 확장자)
             3) existingFiles을 이용해서 동일한 파일이 존재시 무시하고,
@@ -106,24 +105,29 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 log.warn("경로가 존재하지 않거나 디렉토리가 아닙니다: {}", folderPath);
                 continue;
             }
-            
 
-            // 3-3. 해당 콘텐츠 오브젝트의 실제 파일들 조회
-            List<ContentsFileEntity> existingFiles = fileEntityByContentsId.getOrDefault(content.getContentsId(), new ArrayList<>());
-            Set<String> existingFilePaths = new HashSet<>();
-            for (ContentsFileEntity file : existingFiles) {
-                existingFilePaths.add(file.getFilePath());
-            }
 
-            Map<String, String[]> filteredFiles;
+            // 3-3. 해당 콘텐츠 오브젝트의 DB에 저장된 파일들을 Map으로 변환
+            Map<String, ContentsFileEntity> existingFiles = fileEntityByContentsId // key : {확장자 없는 파일 명}, value : [{엔티티 객체}]
+                    .getOrDefault(content.getContentsId(), new ArrayList<>())
+                    .stream()
+                    .collect(Collectors.toMap(
+                            file -> getFileNameWithoutExtension(file.getFilePath()),
+                            file -> file,
+                            // 만약 같은 키가 있다면, 기존 값을 유지 (충돌 해결)
+                            (existing, replacement) -> existing
+                    ));
+
+
             // 3-4. 콘텐츠 오브젝트의 폴더에서 비디오 파일만 조회하여 맵핑
+            Map<String, String[]> filteredFiles; // key : {확장자 없는 파일 명}, value : [{비디오 파일 상대 경로},{자막 파일 상대 경로}]
             try (Stream<Path> videoStream = Files.list(dirPath)) {
                 filteredFiles = videoStream
                         .filter(Files::isRegularFile)
                         .filter(path -> VideoExtensionEnum.isVideo(path.getFileName().toString()))
                         .collect(Collectors.toMap(
                                 path -> getFileNameWithoutExtension(path.getFileName().toString()),  // 확장자 제거한 파일명을 key로
-                                path -> new String[] {path.getFileName().toString(), ""}  // [파일전체이름, 자막(빈문자열)] 배열을 value로
+                                path -> new String[] {path.getFileName().toString(), null}  // [파일전체이름, 자막(null)] 배열을 value로
                         ));
 
                 // 3-5.자막 파일을 비디오 파일에 맵핑하여 처리 처리
@@ -150,18 +154,34 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 continue;
             }
 
-            // 4. 엔티티 리스트에 추가
-            for (ContentsFileEntity contentsFile : existingFiles) {
-                String fileNameWithoutExt = getFileNameWithoutExtension(contentsFile.getFilePath());
+            // 4. 기존 엔티티 객체를 이용하여 현재 상태를 조회하여 엔티티 수정 혹은 삭제 리스트에 추가
+            for (Map.Entry<String,ContentsFileEntity> existingEntry : existingFiles.entrySet()){
                 // 4-1. 기존 파일 경로를 현재 콘텐츠의 파일 경로 목록과 비교하여 삭제 리스트에 추가
-                if (!filteredFiles.containsKey(fileNameWithoutExt)) {
-                    filesToDelete.add(contentsFile);
+                if (!filteredFiles.containsKey(existingEntry.getKey())) {
+                    filesToDelete.add(existingEntry.getValue());
                 // 4-2.자막 파일 경로가 변동 시(혹은 추가, 삭제 시) 업데이트
-                } else if (!filteredFiles.get(fileNameWithoutExt)[1].equals(contentsFile.getFilePath())) {
-                    contentsFile.setSubtitlePath(filteredFiles.get(fileNameWithoutExt)[1]);
-                    contentsFile.setSubtitleCreatedAtNow();
-                    contentsFile.setNewRecord(false);
-                    filesToUpdate.add(contentsFile);
+                } else {
+                    boolean isUpdated = false;
+
+                    // 파일 경로가 변경된 경우
+                    if (!filteredFiles.get(existingEntry.getKey())[0].equals(existingEntry.getValue().getFilePath())) {
+                        existingEntry.getValue().setFilePath(filteredFiles.get(existingEntry.getKey())[0]);
+                        existingEntry.getValue().setNewRecord(false);
+                        isUpdated = true;
+                    }
+
+                    // 자막 경로가 변경된 경우
+                    if (!filteredFiles.get(existingEntry.getKey())[1].equals(existingEntry.getValue().getSubtitlePath())) {
+                        existingEntry.getValue().setSubtitlePath(filteredFiles.get(existingEntry.getKey())[1]);
+                        existingEntry.getValue().setSubtitleCreatedAtNow();
+                        existingEntry.getValue().setNewRecord(false);
+                        isUpdated = true;
+                    }
+
+                    // 파일 경로나 자막 경로 중 하나라도 변경된 경우 업데이트 리스트에 추가
+                    if (isUpdated) {
+                        filesToUpdate.add(existingEntry.getValue());
+                    }
                 }
             }
 
@@ -173,16 +193,8 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 String[] fileDTO = entry.getValue();
 
                 // existingFiles에서 해당 파일명이 있는지 확인
-                boolean exists = false;
-                for (ContentsFileEntity existingFile : existingFiles) {
-                    if (fileNameWithoutExt.equals(getFileNameWithoutExtension(existingFile.getFilePath()))) {
-                        exists = true;
-                        break;
-                    }
-                }
-
                 // 파일이 존재하지 않으면 새로운 엔티티를 생성하여 insert 리스트에 추가
-                if (!exists) {
+                if (!existingFiles.containsKey(fileNameWithoutExt)) {
                     ContentsFileEntity newFile = ContentsFileEntity
                             .builder()
                             .contentsId(content.getId())
@@ -192,36 +204,37 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                             .build();
 
                     // 자막 존재 시 자막 생성일자 세팅
-                    if (!fileDTO[1].isEmpty()){
-                        newFile.setSubtitleCreatedAt(newFile.getCreatedAt());
+                    if (fileDTO[1]!=null){
+                        newFile.setSubtitleCreatedAtNow();
                     }
                     filesToInsert.add(newFile);
                 }
             }
-
-
-
         }
-        // 5. 저장
         
-        // 신규 엔티티 Insert 수행
-        if (!filesToInsert.isEmpty()) {
-            fileRepository.saveAll(filesToInsert).collectList().block();
-            log.info("파일 엔티티 저장 완료");
-        }
-
-        // 수정된 엔티티 Update 수행
-        if (!filesToUpdate.isEmpty()) {
-            fileRepository.saveAll(filesToUpdate).collectList().block();
-            log.info("파일 엔티티 수정 완료");
-        }
-
-        // 삭제된 엔티티 Delete 수행
-        if (!filesToDelete.isEmpty()) {
-            fileRepository.deleteAll(filesToDelete).block();
-            log.info("파일 엔티티 삭제 완료");
-        }
-
+        log.info("파일 처리 결과: 추가 {}, 수정 {}, 삭제 {}", 
+                filesToInsert.size(), filesToUpdate.size(), filesToDelete.size());
+                
+        // 각 리스트를 ExecutionContext에 직접 저장
+        chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext()
+                .put("filesToInsert", filesToInsert);
+        
+        chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext()
+                .put("filesToUpdate", filesToUpdate);
+        
+        chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext()
+                .put("filesToDelete", filesToDelete);
+                
+        // 실제 저장은 별도의 Tasklet에서 처리하도록 변경
         return RepeatStatus.FINISHED;
     }
 
@@ -234,18 +247,6 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
         return Objects.requireNonNull(folderEntity).getFolderPath();
     }
 
-    // 최대 키값+1 불러오기
-    private long getNextFileId(List<ContentsFileEntity> files) {
-        if (files == null || files.isEmpty()) {
-            return 1L;
-        }
-
-        return files.stream()
-                .mapToLong(ContentsFileEntity::getFileId)
-                .max()
-                .orElse(0L) + 1;
-    }
-
     // 확장자 제거해주는 메소드
     private String getFileNameWithoutExtension(String fileName) {
         int lastDotIndex = fileName.lastIndexOf('.');
@@ -254,5 +255,4 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
         }
         return fileName; // 확장자가 없는 경우 원래 파일명 반환
     }
-
 }

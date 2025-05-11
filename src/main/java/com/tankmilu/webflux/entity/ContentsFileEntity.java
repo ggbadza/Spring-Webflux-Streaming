@@ -10,10 +10,11 @@ import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Table()
-public class ContentsFileEntity implements Persistable<Long> {
+public class ContentsFileEntity implements Persistable<Long>, Serializable {
 
     @Id
     @Getter
@@ -25,6 +26,7 @@ public class ContentsFileEntity implements Persistable<Long> {
     private String fileName;        // 파일 이름
 
     @Getter
+    @Setter
     @Column("file_path")
     private String filePath;        // 실제 파일 경로
 
