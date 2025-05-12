@@ -1,6 +1,6 @@
 package com.tankmilu.webflux.record;
 
-public record ContentsReponse(
+public record ContentsResponse(
         Long contentsId,
         String title,
         String description,

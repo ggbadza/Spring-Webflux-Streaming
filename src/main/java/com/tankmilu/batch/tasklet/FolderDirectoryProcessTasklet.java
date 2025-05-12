@@ -65,14 +65,15 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
 
             // 1. _folder_info.json 존재 여부 확인
             if (Files.exists(infoFile)) {
-                try {
-                    if (!(Boolean) Files.getAttribute(infoFile, "dos:hidden")) {
-                        Files.setAttribute(infoFile, "dos:hidden", true);
-                    }
-                } catch (Exception e) {
-                // 숨김 속성 설정 실패해도 계속 진행
-                    log.debug("숨김 속성 설정 실패 (무시됨): '{}', \nERROR : {}", infoFile,e.getMessage());
-                }
+                // 정보 파일 숨김 처리 (리눅스 기반 도커에서는 작동 안함)
+//                try {ㅠ
+//                    if (!(Boolean) Files.getAttribute(infoFile, "dos:hidden")) {
+//                        Files.setAttribute(infoFile, "dos:hidden", true);
+//                    }
+//                } catch (Exception e) {
+//                // 숨김 속성 설정 실패해도 계속 진행
+//                    log.debug("숨김 속성 설정 실패 (무시됨): '{}', \nERROR : {}", infoFile,e.getMessage());
+//                }
 
 
                 Long folderId = readFolderIdFromJson(infoFile);

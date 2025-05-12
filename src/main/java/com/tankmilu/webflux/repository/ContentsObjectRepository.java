@@ -1,10 +1,14 @@
 package com.tankmilu.webflux.repository;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
+import io.r2dbc.spi.Result;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
 
 public interface ContentsObjectRepository extends R2dbcRepository<ContentsObjectEntity, Long> {
 
@@ -41,6 +45,9 @@ public interface ContentsObjectRepository extends R2dbcRepository<ContentsObject
         WHERE a.has_files = 1
         and b.`type`  = :type
         and b.folder_id = a.folder_id
+        order by b.modified_at desc ,b.title
         """)
     Flux<ContentsObjectEntity> findContentsObjectEntitiesByTypeAndFolderIdRecursive(String type,Long folderId);
+
+    Flux<ContentsObjectEntity> findTop20ByOrderByModifiedAtDesc();
 }
