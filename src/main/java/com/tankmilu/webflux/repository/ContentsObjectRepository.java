@@ -50,4 +50,9 @@ public interface ContentsObjectRepository extends R2dbcRepository<ContentsObject
     Flux<ContentsObjectEntity> findContentsObjectEntitiesByTypeAndFolderIdRecursive(String type,Long folderId);
 
     Flux<ContentsObjectEntity> findTop20ByOrderByModifiedAtDesc();
+
+    // 타입 필터링
+    Flux<ContentsObjectEntity> findTop20ByTypeEqualsOrderByModifiedAtDesc(String type);
+
+
 }

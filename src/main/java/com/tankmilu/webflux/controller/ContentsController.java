@@ -38,7 +38,7 @@ public class ContentsController {
     /**
      * 가장 최근에 변경된 컨텐츠 목록을 조회함(파라미터가 null 일시 전체 목록중에 20개)
      *
-     * @param type 컨텐츠 타입(aniem, moive, drama)
+     * @param type 컨텐츠 타입(anime, moive, drama)
      * @param pid 조회 할 폴더ID
      * @return 컨텐츠 정보가 포함된 응답 객체 Flux(ContentsReponse)를 수정시간의 역순으로 반환
      *
@@ -59,7 +59,7 @@ public class ContentsController {
      */
     @PostMapping("${app.contents.urls.recommend}")
     public Flux<RecommendContentsResponse> getRecommendContents(
-            @RequestParam(defaultValue = "default") String userId) {
+            @RequestParam(defaultValue = "0") String userId) {
         return contentsService.getRecommendContents(userId);
     }
 

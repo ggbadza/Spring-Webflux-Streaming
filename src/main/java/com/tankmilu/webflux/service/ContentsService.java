@@ -35,7 +35,8 @@ public class ContentsService {
     }
 
     public Flux<ContentsResponse> getContentsInfoRecently(String type, Long pid) {
-        if (type == null || pid == null) {
+        // 컨텐츠 타입(type)이 null 인 경우 전체 컨텐츠의 최신 수정 순서
+        if (type == null) {
             return contentsObjectRepository.findTop20ByOrderByModifiedAtDesc()
                     .map(contentsObject -> new ContentsResponse(
                             contentsObject.getContentsId(),
@@ -46,6 +47,19 @@ public class ContentsService {
                             contentsObject.getType(),
                             contentsObject.getFolderId()
                     ));
+        // 부모 폴더 id(pid)이 null 혹은 0인 경우 해당 컨텐츠의 전체 최신 수정 순서
+        } else if (pid == null || pid.equals(0L)) {
+            return contentsObjectRepository.findTop20ByTypeEqualsOrderByModifiedAtDesc(type)
+                    .map(contentsObject -> new ContentsResponse(
+                            contentsObject.getContentsId(),
+                            contentsObject.getTitle(),
+                            contentsObject.getDescription(),
+                            contentsObject.getThumbnailUrl(),
+                            contentsObject.getPosterUrl(),
+                            contentsObject.getType(),
+                            contentsObject.getFolderId()
+                    ));
+        // 그 외의 경우 각 컨텐츠의 특정 폴더 내부 순서로 리턴
         } else {
             return contentsObjectRepository.findContentsObjectEntitiesByTypeAndFolderIdRecursive(type, pid)
                     .map(contentsObject -> new ContentsResponse(
