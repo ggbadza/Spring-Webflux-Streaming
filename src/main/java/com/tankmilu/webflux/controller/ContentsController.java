@@ -2,8 +2,10 @@ package com.tankmilu.webflux.controller;
 
 import com.tankmilu.webflux.record.ContentsResponse;
 import com.tankmilu.webflux.record.RecommendContentsResponse;
+import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.ContentsService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -53,14 +55,13 @@ public class ContentsController {
     /**
      * 각 사용자 ID 별 추천 컨텐츠 정보를 리턴
      *
-     * @param userId 유저 ID
      * @return 추천 컨텐츠 정보가 포함된 응답 객체 Flux(RecommendContentsResponse)를 반환
      *
      */
-    @PostMapping("${app.contents.urls.recommend}")
+    @RequestMapping("${app.contents.urls.recommend}")
     public Flux<RecommendContentsResponse> getRecommendContents(
-            @RequestParam(defaultValue = "0") String userId) {
-        return contentsService.getRecommendContents(userId);
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return contentsService.getRecommendContents(userDetails.getUsername());
     }
 
 

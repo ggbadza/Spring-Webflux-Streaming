@@ -77,6 +77,8 @@ public class ContentsService {
 
     public Flux<RecommendContentsResponse> getRecommendContents(String userId) {
         return userContentsRecommendRepository.findByIdUserIdOrderByIdRecommendSeq(userId)
+                // 데이터 미 존재 시, 기본값 "0"으로 받아오도록
+                .switchIfEmpty(userContentsRecommendRepository.findByIdUserIdOrderByIdRecommendSeq("0"))
                 // concatMap으로 Flux 순서 유지
                 .concatMap(recommend -> {
                     Flux<ContentsResponse> contentsFlux = getContentsInfoRecently(recommend.getContentsType(), recommend.getFolderId());

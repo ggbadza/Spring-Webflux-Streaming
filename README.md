@@ -5,6 +5,7 @@ TODO LIST
 -------------
 - [x] <b>Mono</b>로 Content-Range 기반 동영상 응답 구현
 - [ ] <b>Flux</b>로 실시간 동영상 스트리밍 구현
+- [ ] <b>Flux</b>로 채팅 시스템 구현
 - [x] <b>NIO</b> 기반 논블로킹 스트리밍 구현
 - [x] <b>RaceCondition</b> 방지 구현
 - [x] <b>Spring Security</b>를 이용한 차등 권한 부여
