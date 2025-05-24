@@ -161,7 +161,6 @@ public class UserService {
     }
 
 
-    @Transactional
     public Mono<UserRegResponse> register(UserRegRequest userRegRequests) {
         return userRepository.findByUserId(userRegRequests.userId())
                 // 이미 존재하는 사용자라면 에러 반환
