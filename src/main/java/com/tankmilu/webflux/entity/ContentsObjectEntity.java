@@ -11,41 +11,35 @@ import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Table()
+@Getter
 public class ContentsObjectEntity implements Persistable<Long> {
 
     @Id
     @Column("contents_id")
-    @Getter
     private Long contentsId;
 
     @Column("title")
-    @Getter
     private String title;
 
     @Column("description")
-    @Getter
     private String description;
 
     @Column("thumbnail_url")
-    @Getter
     private String thumbnailUrl;
 
     @Column("poster_url")
-    @Getter
     private String posterUrl;
 
     @Column("release_ym")
-    @Getter
     private String releaseYM;
 
     @Column("type")
-    @Getter
     private String type;
 
     @Column("folder_id")
-    @Getter
     private Long folderId;
 
     @CreatedDate
@@ -55,6 +49,9 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @CreatedDate
     @Column("modified_at")
     private LocalDateTime modifiedAt;
+
+    @Column("subscription_code")
+    private String subscriptionCode;
 
     @Transient
     private boolean isNewRecord;
@@ -73,6 +70,7 @@ public class ContentsObjectEntity implements Persistable<Long> {
             String posterUrl,
             String releaseYM,
             String type,
+            String subscriptionCode,
             Long folderId,
             LocalDateTime modifiedAt) {
         this.contentsId = contentsId;
@@ -84,6 +82,7 @@ public class ContentsObjectEntity implements Persistable<Long> {
         this.type = type;
         this.folderId = folderId;
         this.modifiedAt = modifiedAt;
+        this.subscriptionCode = subscriptionCode;
         this.isNewRecord = true; // 새로 생성하는 경우
     }
 

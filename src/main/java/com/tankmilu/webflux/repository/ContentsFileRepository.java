@@ -26,4 +26,6 @@ public interface ContentsFileRepository extends R2dbcRepository<ContentsFileEnti
         WHERE a.id = :fileId
         """)
     Mono<FileInfoRecord> findFileWithContentInfo(Long fileId);
+
+
 }

@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.controller;
 
 import com.tankmilu.webflux.record.ContentsResponse;
+import com.tankmilu.webflux.record.FileInfoSummaryResponse;
 import com.tankmilu.webflux.record.RecommendContentsResponse;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.ContentsService;
@@ -55,6 +56,7 @@ public class ContentsController {
     /**
      * 각 사용자 ID 별 추천 컨텐츠 정보를 리턴
      *
+     * @param userDetails 로그인 한 사용자 정보
      * @return 추천 컨텐츠 정보가 포함된 응답 객체 Flux(RecommendContentsResponse)를 반환
      *
      */
@@ -64,5 +66,17 @@ public class ContentsController {
         return contentsService.getRecommendContents(userDetails.getUsername());
     }
 
+    /**
+     * 각 컨텐츠에 속한 파일들을 리턴
+     *
+     * @param contentsId 조회 할 컨텐츠ID
+     * @return 추천 컨텐츠 정보가 포함된 응답 객체 Flux(RecommendContentsResponse)를 반환
+     *
+     */
+    @RequestMapping("${app.contents.urls.files}")
+    public Flux<FileInfoSummaryResponse> getContentsFiles(
+            @RequestParam Long contentsId) {
+        return contentsService.getContentsFiles(contentsId);
+    }
 
 }

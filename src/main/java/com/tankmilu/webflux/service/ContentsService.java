@@ -1,12 +1,16 @@
 package com.tankmilu.webflux.service;
 
+import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.record.ContentsResponse;
+import com.tankmilu.webflux.record.FileInfoSummaryResponse;
 import com.tankmilu.webflux.record.RecommendContentsResponse;
+import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.UserContentsRecommendRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -18,6 +22,8 @@ import java.util.List;
 public class ContentsService {
 
     private final ContentsObjectRepository contentsObjectRepository;
+
+    private final ContentsFileRepository contentsFileRepository;
 
     private final UserContentsRecommendRepository userContentsRecommendRepository;
 
@@ -89,6 +95,21 @@ public class ContentsService {
                                     recommend.getDescription(),
                                     contentsList
                             ));
+                });
+    }
+
+    public Flux<FileInfoSummaryResponse> getContentsFiles(Long contentsId) {
+        return contentsFileRepository.findByContentsIdOrderByFileName(contentsId)
+                .map(fileEntity -> {
+                    // FileInfoSummaryResponse로 변환하는 로직
+                    return new FileInfoSummaryResponse(
+                            fileEntity.getId(),
+                            fileEntity.getFileName(),
+                            fileEntity.getContentsId(),
+                            StringUtils.hasText(fileEntity.getSubtitlePath()),
+                            fileEntity.getResolution(),
+                            fileEntity.getCreatedAt()
+                    );
                 });
     }
 
