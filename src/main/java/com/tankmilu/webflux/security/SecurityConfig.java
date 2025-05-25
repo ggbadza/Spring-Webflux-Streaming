@@ -55,7 +55,7 @@ public class SecurityConfig {
                 .authorizeExchange(exchange -> exchange
 //                        .pathMatchers("/video/test").permitAll()   // 공개된 주소
 //                        .pathMatchers("/h2-console").permitAll()
-//                        .pathMatchers(userUrl+"/me").authenticated()
+                        .pathMatchers(userUrl+"/me").authenticated()
                         .pathMatchers(userUrl+"/**").permitAll()
                         .pathMatchers(batchUrl+"/**").permitAll()
                         .pathMatchers("/**").permitAll()

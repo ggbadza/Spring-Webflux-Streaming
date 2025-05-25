@@ -33,20 +33,17 @@ public class UserController {
      * @return 로그인 성공 여부와 JWT 토큰이 포함된 쿠키 반환
      */
     @PostMapping("/login")
-    public Mono<ResponseEntity<Boolean>> login(@RequestBody Mono<LoginRequestRecord> loginRequest) {
-        return loginRequest.flatMap(request ->
-                authenticationManager.authenticate(
-                                new UsernamePasswordAuthenticationToken(
-                                        request.userId(),
-                                        request.password()
-                                )
-                        )
-                        .flatMap(authentication ->
-                                userService.createToken(authentication)
-                                        .map(this::buildTokenResponse)
+    public Mono<ResponseEntity<Boolean>> login(@RequestBody LoginRequestRecord loginRequest) {
+        return authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(
+                                loginRequest.userId(),
+                                loginRequest.password()
                         )
                 )
-                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
+                .flatMap(authentication ->
+                        userService.createToken(authentication)
+                                .map(this::buildTokenResponse)
+                );
     }
 
     /**
@@ -108,16 +105,9 @@ public class UserController {
      * @return 등록 결과 정보 반환
      */
     @PostMapping("/register")
-    public Mono<ResponseEntity<UserRegResponse>> register(@RequestBody Mono<UserRegRequest> registerRequest) {
-        return registerRequest
-                .flatMap(userRegRequests ->
-                                userService.register(userRegRequests)
-                                        .map(ResponseEntity::ok)
-                )
-                .onErrorResume(e -> {
-                    return Mono.just(ResponseEntity.badRequest()
-                            .body(new UserRegResponse(null, null, null, "회원가입 실패: " + e.getMessage())));
-                });
+    public Mono<ResponseEntity<UserRegResponse>> register(@RequestBody UserRegRequest registerRequest) {
+        return userService.register(registerRequest)
+                .map(ResponseEntity::ok);
     }
 
     /**

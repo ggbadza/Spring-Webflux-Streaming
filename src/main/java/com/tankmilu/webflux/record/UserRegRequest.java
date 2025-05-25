@@ -4,5 +4,5 @@ public record UserRegRequest(
         String userId,
         String userName,
         String password,
-        String subscriptionPlan) {
+        String regCode) {
 }
