@@ -2,6 +2,7 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.JwtRefreshTokenEntity;
 import com.tankmilu.webflux.entity.UserEntity;
+import com.tankmilu.webflux.exception.InvalidUserRegCodeException;
 import com.tankmilu.webflux.record.JwtAccessAndRefreshRecord;
 import com.tankmilu.webflux.record.UserAuthRecord;
 import com.tankmilu.webflux.record.UserRegRequest;
@@ -168,11 +169,11 @@ public class UserService {
         return registrationCodeRepository
                 // 1. 등록 코드 존재 여부 확인
                 .findByRegCode(userRegRequests.regCode())
-                .switchIfEmpty(Mono.error(new RuntimeException("등록 코드가 존재하지 않습니다.")))
+                .switchIfEmpty(Mono.error(new InvalidUserRegCodeException("등록 코드가 존재하지 않습니다.")))
                 // 2. 등록 코드 유효성 검증
                 .flatMap(code -> {
                     if (!code.isUsable()) {
-                        return Mono.error(new RuntimeException("유효하지 않은 등록 코드입니다."));
+                        return Mono.error(new InvalidUserRegCodeException("유효하지 않은 등록 코드입니다."));
                     }
                     return Mono.just(code);
                 })
@@ -184,7 +185,7 @@ public class UserService {
                 // 4. 사용자 중복 체크 및 회원가입 진행
                 .flatMap(validCode -> userRepository.findByUserId(userRegRequests.userId())
                         // 이미 존재하는 사용자라면 에러 반환
-                        .flatMap(existingUser -> Mono.<UserEntity>error(new RuntimeException("동일한 ID가 존재합니다.")))
+                        .flatMap(existingUser -> Mono.<UserEntity>error(new UsernameNotFoundException("동일한 ID가 존재합니다.")))
                         // 사용자가 존재하지 않으면, 새 사용자 생성
                         .switchIfEmpty(Mono.defer(() -> {
                             UserEntity newUser = UserEntity.builder()

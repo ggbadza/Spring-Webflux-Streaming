@@ -1,5 +1,8 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.exception.DuplicateUserException;
+import com.tankmilu.webflux.exception.InvalidUserRegCodeException;
+import com.tankmilu.webflux.exception.UserException;
 import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.UserService;
@@ -105,10 +108,10 @@ public class UserController {
      * @return 등록 결과 정보 반환
      */
     @PostMapping("/register")
-    public Mono<ResponseEntity<UserRegResponse>> register(@RequestBody UserRegRequest registerRequest) {
-        return userService.register(registerRequest)
-                .map(ResponseEntity::ok);
+    public Mono<UserRegResponse> register(@RequestBody UserRegRequest registerRequest) {
+        return userService.register(registerRequest);
     }
+
 
     /**
      * 현재 인증된 사용자의 정보를 조회함
