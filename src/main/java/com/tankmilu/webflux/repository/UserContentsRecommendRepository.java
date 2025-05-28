@@ -4,7 +4,7 @@ import com.tankmilu.webflux.entity.UserContentsRecommendEntity;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Flux;
 
-public interface UserContentsRecommendRepository extends R2dbcRepository<UserContentsRecommendEntity, UserContentsRecommendEntity.UserContentsRecommendId> {
+public interface UserContentsRecommendRepository extends R2dbcRepository<UserContentsRecommendEntity, String> {
 
-    Flux<UserContentsRecommendEntity> findByIdUserIdOrderByIdRecommendSeq(String userId);
+    Flux<UserContentsRecommendEntity> findByUserIdOrderByRecommendSeq(String userId);
 }

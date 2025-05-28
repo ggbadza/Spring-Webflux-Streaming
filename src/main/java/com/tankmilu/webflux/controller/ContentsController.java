@@ -28,14 +28,14 @@ public class ContentsController {
     /**
      * 컨텐츠 파일의 세부 정보를 조회함
      * 
-     * @param cid 컨텐츠 ID
+     * @param contentsId 컨텐츠 ID
      * @return 컨텐츠 정보가 포함된 응답 객체(ContentsReponse)를 반환
      *
      */
-    @PostMapping("${app.contents.urls.info}")
+    @RequestMapping("${app.contents.urls.info}")
     public Mono<ContentsResponse> getVideoFileInfo(
-            @RequestParam Long cid) {
-        return contentsService.getContentsInfo(cid);
+            @RequestParam Long contentsId) {
+        return contentsService.getContentsInfo(contentsId);
     }
 
     /**

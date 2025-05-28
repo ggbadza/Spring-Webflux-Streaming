@@ -196,10 +196,10 @@ public class VideoService {
     }
 
     public Mono<String> getHlsM3u8(Long fileId, String type) throws IOException {
-        return contentsFileRepository.findById(fileId)
+        return contentsFileRepository.findFileWithContentInfo(fileId)
                 .flatMap(entity -> // IO에러 처리를 위해 flatMap -> fromCallable 사용
                         Mono.fromCallable(() -> {
-                            String videoPath = entity.getFilePath();
+                            String videoPath = entity.getFullFilePath();
                             Double videoDuration = ffmpegService.getVideoDuration(videoPath);
 
                             StringBuilder m3u8Builder = new StringBuilder();
@@ -274,10 +274,12 @@ public class VideoService {
     }
 
     public Mono<String> getHlsM3u8Master(Long fileId) {
-        return contentsFileRepository.findById(fileId)
+        log.info("getHlsM3u8Master, fileId=" + fileId);
+        return contentsFileRepository.findFileWithContentInfo(fileId)
                 .flatMap(entity -> // IO에러 처리를 위해 flatMap -> fromCallable 사용
                         Mono.fromCallable(() -> {
-                            String videoPath = entity.getFilePath();
+                                    log.info("@@@@@@@@@@@@@@@@@@@@entity="+entity);
+                            String videoPath = entity.getFullFilePath();
                             StringBuilder m3u8Builder = new StringBuilder();
                             m3u8Builder.append("#EXTM3U\n");
                             m3u8Builder.append("#EXT-X-VERSION:7\n");

@@ -67,8 +67,7 @@ public class UserController {
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 .flatMap(authentication -> userService.accessTokenReissue(authentication, refreshToken))
-                .map(this::buildTokenResponse)
-                .onErrorResume(e -> Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(false)));
+                .map(this::buildTokenResponse);
     }
 
     /**
@@ -81,7 +80,7 @@ public class UserController {
         // 액세스 토큰 쿠키 생성
         ResponseCookie accessTokenCookie = ResponseCookie.from("accessToken", jwtResponse.accessToken())
                 .httpOnly(true)
-                .secure(true)
+                .secure(false) // SSL 통신 시 true 설정 필요
                 .path("/")
                 .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate()))  // 현재 시간과 만기 시간의 차이
                 .build();
@@ -89,7 +88,7 @@ public class UserController {
         // 리프레시 토큰 쿠키 생성
         ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", jwtResponse.refreshToken())
                 .httpOnly(true)
-                .secure(true)
+                .secure(false) // SSL 통신 시 true 설정 필요
                 .path("/")
                 .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate())) // 현재 시간과 만기 시간의 차이
                 .build();

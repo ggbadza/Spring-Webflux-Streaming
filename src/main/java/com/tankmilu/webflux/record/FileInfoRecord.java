@@ -14,10 +14,10 @@ public record FileInfoRecord(
         String subscriptionCode
 ) {
     public String getFullFilePath() {
-        return folderPath + "\\" + filePath;
+        return folderPath + "/" + filePath;
     }
 
     public String getFullSubtitlePath() {
-        return folderPath + "\\" + subtitlePath;
+        return folderPath + "/" + subtitlePath;
     }
 }

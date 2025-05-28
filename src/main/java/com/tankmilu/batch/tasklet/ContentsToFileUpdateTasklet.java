@@ -127,7 +127,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         .filter(path -> VideoExtensionEnum.isVideo(path.getFileName().toString()))
                         .collect(Collectors.toMap(
                                 path -> getFileNameWithoutExtension(path.getFileName().toString()),  // 확장자 제거한 파일명을 key로
-                                path -> new String[] {path.getFileName().toString(), null}  // [파일전체이름, 자막(null)] 배열을 value로
+                                path -> new String[] {path.getFileName().toString(), ""}  // [파일전체이름, 자막(null)] 배열을 value로
                         ));
 
                 // 3-5.자막 파일을 비디오 파일에 맵핑하여 처리 처리

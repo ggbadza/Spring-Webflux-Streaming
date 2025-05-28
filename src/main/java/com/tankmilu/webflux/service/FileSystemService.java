@@ -54,7 +54,7 @@ public class FileSystemService {
                                 folder.getSubscriptionCode()
                         )
                 )
-                .map(folder -> new DirectoryRecord(folder.getFolderId(), folder.getName(), folder.getHasFiles()))
+                .map(folder -> new DirectoryRecord(folder.getFolderId(), folder.getName(), folder.getHasFiles(),folder.getContentsId()))
                 .collectList();
     }
 
@@ -93,7 +93,7 @@ public class FileSystemService {
 
         Mono<List<DirectoryRecord>> filesMono = getFileList(type, parentId, userPlan)
                 .map(fileNames -> fileNames.stream()
-                        .map(fileName -> new DirectoryRecord(null, fileName, null))
+                        .map(fileName -> new DirectoryRecord(null, fileName, null, null))
                         .collect(Collectors.toList()));
 
         return folderTreeRepository.findByFolderId(parentId)

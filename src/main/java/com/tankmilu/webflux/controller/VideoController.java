@@ -106,11 +106,6 @@ public class VideoController {
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
-                .onErrorResume(e -> { // 에러 처리
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain;");
-                    return Mono.just(new ResponseEntity<>("IO ERROR", headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
@@ -153,13 +148,8 @@ public class VideoController {
             @AuthenticationPrincipal CustomUserDetails userDetails) throws IOException {
         return videoService
                 .getHlsTs(fileId, ss, to, type, userDetails.getSubscriptionCode())
-                .subscribeOn(Schedulers.boundedElastic())
-                .onErrorResume(e -> {
-                    String msg = "에러 발생 : " + e.getMessage();
-                    DataBuffer errorBuffer = new DefaultDataBufferFactory()
-                            .wrap(msg.getBytes(StandardCharsets.UTF_8));
-                    return Flux.just(errorBuffer);
-                });
+                .subscribeOn(Schedulers.boundedElastic());
+
     }
 
     /**
@@ -172,9 +162,8 @@ public class VideoController {
     @GetMapping(value = "${app.video.urls.subtitle}", produces = "text/plain; charset=UTF-8")
     public Flux<DataBuffer> getSubtitle(
             @RequestParam Long fileId,
-            @RequestParam(required = false, defaultValue = "f") String type,
-            @AuthenticationPrincipal CustomUserDetails userDetails){
-        return videoService.getSubtitle(fileId, type, userDetails.getSubscriptionCode());
+            @RequestParam(required = false, defaultValue = "f") String type){
+        return videoService.getSubtitle(fileId, type, "100");
     }
 
     /**
@@ -200,22 +189,13 @@ public class VideoController {
     @Deprecated
     @GetMapping("${app.video.urls.hlsinit}")
     public Mono<ResponseEntity<InputStreamResource>> getInitVideo(
-            @RequestParam String fn) throws IOException {
+            @RequestParam String fn) {
         return Mono.fromCallable(() -> videoService.getHlsInitData(fn))
                 .subscribeOn(Schedulers.boundedElastic())
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
-                .onErrorResume(e -> {
-                    // 에러 메시지를 InputStreamResource로 반환
-                    String errorMessage = "Error occurred: " + e.getMessage();
-                    InputStream errorStream = new ByteArrayInputStream(errorMessage.getBytes(StandardCharsets.UTF_8));
-                    InputStreamResource errorResource = new InputStreamResource(errorStream);
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain");
-                    return Mono.just(new ResponseEntity<>(errorResource, headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 
@@ -241,15 +221,6 @@ public class VideoController {
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                })
-                .onErrorResume(e -> {
-                    // 에러 메시지를 InputStreamResource로 반환
-                    String errorMessage = "Error occurred: " + e.getMessage();
-                    InputStream errorStream = new ByteArrayInputStream(errorMessage.getBytes(StandardCharsets.UTF_8));
-                    InputStreamResource errorResource = new InputStreamResource(errorStream);
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "text/plain");
-                    return Mono.just(new ResponseEntity<>(errorResource, headers, HttpStatus.INTERNAL_SERVER_ERROR));
                 });
     }
 }

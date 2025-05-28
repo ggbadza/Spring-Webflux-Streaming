@@ -14,7 +14,11 @@ import java.time.LocalDateTime;
 public class UserContentsRecommendEntity {
 
     @Id
-    private UserContentsRecommendId id;
+    @Column("user_id")
+    private String userId;
+
+    @Column("recommend_seq")
+    private Integer recommendSeq;
 
     @Column("description")
     private String description;
@@ -29,13 +33,4 @@ public class UserContentsRecommendEntity {
     @CreatedDate
     private LocalDateTime createdAt;
 
-    @Getter
-    public static class UserContentsRecommendId {
-
-        @Column("user_id")
-        private String userId;
-
-        @Column("recommend_seq")
-        private Integer recommendSeq;
-    }
 }

@@ -42,6 +42,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
     @Override
     public HashMap<String, String> getVideoMetaData(String videoPath) throws IOException {
         FFprobe ffprobe = new FFprobe(ffprobeDir);
+        log.info("ffprobe start. videoPath: {}", videoPath);
 //        String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
         FFmpegProbeResult probeResult = ffprobe.probe(videoPath);
 

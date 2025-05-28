@@ -14,16 +14,22 @@ public interface ContentsFileRepository extends R2dbcRepository<ContentsFileEnti
     Flux<ContentsFileEntity> findByContentsIdOrderByFileName(Long contentsId);
 
     @Query("""
-        SELECT a.id as id, a.file_name as fileName, a.file_path as filePath, a.contents_id as contentsId,
-               a.subtitle_path as subtitlePath, a.resolution as resolution, a.created_at as createdAt,
-               COALESCE(anime.folder_path, drama.folder_path, movie.folder_path) AS folderPath,
-               COALESCE(anime.subscription_code, drama.subscription_code, movie.subscription_code) AS subscriptionCode,
-        FROM contents_file_entity a
-        INNER JOIN contents_object_entity b ON a.contents_id = b.id
-        LEFT JOIN animation_folder_tree_entity anime ON b.type = 'anime' AND b.folder_id = anime.folder_id
-        LEFT JOIN drama_folder_tree_entity drama ON b.type = 'drama' AND b.folder_id = drama.folder_id
-        LEFT JOIN movie_folder_tree_entity movie ON b.type = 'movie' AND b.folder_id = movie.folder_id
-        WHERE a.id = :fileId
+        SELECT
+            a.file_id  as id,
+            a.file_name as file_name,
+            a.file_path as file_path,
+            a.contents_id as contents_id,
+            a.subtitle_path as subtitle_path,
+            a.resolution as resolution,
+            a.created_at as createdAt,
+            COALESCE(anime.folder_path, drama.folder_path, movie.folder_path) AS folder_path,
+            COALESCE(anime.subscription_code, drama.subscription_code, movie.subscription_code) AS subscription_code
+        FROM webflux.contents_file_entity a
+        INNER JOIN webflux.contents_object_entity b ON a.contents_id = b.contents_id
+        LEFT JOIN webflux.animation_folder_tree_entity anime ON b.type = 'anime' AND b.folder_id = anime.folder_id
+        LEFT JOIN webflux.drama_folder_tree_entity drama ON b.type = 'drama' AND b.folder_id = drama.folder_id
+        LEFT JOIN webflux.movie_folder_tree_entity movie ON b.type = 'movie' AND b.folder_id = movie.folder_id
+        WHERE a.file_id = :fileId
         """)
     Mono<FileInfoRecord> findFileWithContentInfo(Long fileId);
 

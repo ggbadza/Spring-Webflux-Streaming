@@ -22,16 +22,32 @@ public class FileSystemController {
      * 디렉토리 내용을 조회함
      * 
      * @param type 컨텐츠 유형 (anime, movie, drama 등)
-     * @param pid 부모 디렉토리 ID (기본값: 0)
+     * @param folderId 부모 디렉토리 ID (기본값: 0)
      * @param userDetails 인증된 사용자 정보
      * @return 디렉토리 내 폴더 및 파일 목록 반환
      */
     @GetMapping("${app.filesystem.urls.files}")
+    public Mono<List<DirectoryRecord>> getDirectoryFoldersAndFiles(
+            @RequestParam(required = true) String type,
+            @RequestParam(required = false, defaultValue = "1") Long folderId,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return fileSystemService.getFolderAndFilesList(type, folderId, userDetails.getSubscriptionCode());
+    }
+
+    /**
+     * 디렉토리 내용을 조회함
+     *
+     * @param type 컨텐츠 유형 (anime, movie, drama 등)
+     * @param folderId 부모 디렉토리 ID (기본값: 0)
+     * @param userDetails 인증된 사용자 정보
+     * @return 디렉토리 내 폴더 목록 반환
+     */
+    @GetMapping("${app.filesystem.urls.folders}")
     public Mono<List<DirectoryRecord>> getDirectoryContents(
             @RequestParam(required = true) String type,
-            @RequestParam(required = false, defaultValue = "0") Long pid,
+            @RequestParam(required = false, defaultValue = "1") Long folderId,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return fileSystemService.getFolderAndFilesList(type, pid, userDetails.getSubscriptionCode());
+        return fileSystemService.getFolderList(type, folderId, userDetails.getSubscriptionCode());
     }
 
     /**
