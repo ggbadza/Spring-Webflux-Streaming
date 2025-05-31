@@ -8,14 +8,20 @@ import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
+import com.tankmilu.webflux.service.FFmpegServiceProcessImpl;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.mozilla.universalchardet.UniversalDetector;
 import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,11 +40,17 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
     private final ContentsFileRepository fileRepository;
     private final String type;
     private final Long folderId;
+
+    private final FFmpegServiceProcessImpl fFmpegServiceProcess;
     
     // 배치 결과를 저장할 리스트 생성
     private final List<ContentsFileEntity> filesToInsert = new ArrayList<>();
     private final List<ContentsFileEntity> filesToUpdate = new ArrayList<>();
     private final List<ContentsFileEntity> filesToDelete = new ArrayList<>();
+
+
+    @Value("${custom.batch.subtitle_folder}")
+    private String tempSubtitleFolder;
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
@@ -82,10 +94,12 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
         log.info("기존 파일 엔티티 수: {}", allFiles != null ? allFiles.size() : 0);
 
+
         // 3. 각 콘텐츠오브젝트에 대해 파일 검색 및 콘텐츠파일엔티티 업데이트
         /*
             1) 동영상 파일을 전부 검사
             2) 만약 동영상 파일이 존재한다면 자막 파일의 존재를 검사(자막은 동영상과 동일한 이름에 확장자만 자막 확장자)
+            2-2) 자막이 ass가 아닌 경우 ass로 변환 수행
             3) existingFiles을 이용해서 동일한 파일이 존재시 무시하고,
             existingFiles에는 있지만 새로 검사한 파일중에 없다면 삭제 처리하고,
             existingFiles에는 없지만 새로 검사한 파일이 있다면 인설트 하고(자막 경로와 같이)
@@ -108,6 +122,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
 
             // 3-3. 해당 콘텐츠 오브젝트의 DB에 저장된 파일들을 Map으로 변환
+            // existingFiles : 기존 DB에 있던 파일 목록
             Map<String, ContentsFileEntity> existingFiles = fileEntityByContentsId // key : {확장자 없는 파일 명}, value : [{엔티티 객체}]
                     .getOrDefault(content.getContentsId(), new ArrayList<>())
                     .stream()
@@ -119,7 +134,8 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                     ));
 
 
-            // 3-4. 콘텐츠 오브젝트의 폴더에서 비디오 파일만 조회하여 맵핑
+            // 3-4. 실제 콘텐츠 오브젝트의 폴더에서 비디오 파일만 조회하여 맵핑
+            // filteredFiles : 현재 폴더에 존재하는 실제 파일 목록
             Map<String, String[]> filteredFiles; // key : {확장자 없는 파일 명}, value : [{비디오 파일 상대 경로},{자막 파일 상대 경로}]
             try (Stream<Path> videoStream = Files.list(dirPath)) {
                 filteredFiles = videoStream
@@ -130,7 +146,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                                 path -> new String[] {path.getFileName().toString(), ""}  // [파일전체이름, 자막(null)] 배열을 value로
                         ));
 
-                // 3-5.자막 파일을 비디오 파일에 맵핑하여 처리 처리
+                // 3-5.자막 파일을 비디오 파일에 맵핑하여 처리
                 try (Stream<Path> subtitleStream = Files.list(dirPath)) {
                     subtitleStream
                             .filter(Files::isRegularFile)
@@ -176,6 +192,43 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         existingEntry.getValue().setSubtitleCreatedAtNow();
                         existingEntry.getValue().setNewRecord(false);
                         isUpdated = true;
+                    }
+
+                    // 4-3. 자막이 ass가 아닌 경우 자막 임시 폴더 검사 후 미존재시 ass 변환 수행
+                    if(existingEntry.getValue().getSubtitlePath()!=null && !existingEntry.getValue().getSubtitlePath().isEmpty()){
+                        if(!SubtitleExtensionEnum.ASS.isSupportedFile(existingEntry.getValue().getSubtitlePath())){
+                            log.info("ID : {}, FileName : {}, subtitlePath : {}",existingEntry.getValue().getContentsId(),existingEntry.getValue().getFileName(),existingEntry.getValue().getSubtitlePath());
+                            String outputPath = tempSubtitleFolder+'/'+existingEntry.getValue().getFileId()+".f.ass";
+                            // outputPath에 실제 파일이 존재하는지 체크
+                            File outputFile = new File(outputPath);
+                            if (!outputFile.exists()) {
+                                log.info("ass로 자막 변환 수행. file ID: {}", existingEntry.getValue().getFileId());
+                                String originalSubtitlePath = folderPath+'/'+existingEntry.getValue().getSubtitlePath();
+                                File originalSubtitleFile = new File(originalSubtitlePath);
+                                String detectedEncoding = null;
+
+                                // 자막 파일의 인코딩 체크
+                                byte[] buf = new byte[4096];
+                                try (FileInputStream fis = new FileInputStream(originalSubtitleFile)) {
+                                    UniversalDetector detector = new UniversalDetector(null);
+                                    int nread;
+                                    while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
+                                        detector.handleData(buf, 0, nread);
+                                    }
+                                    detector.dataEnd();
+                                    detectedEncoding = detector.getDetectedCharset();
+                                    detector.reset(); // 다음 사용을 위해 리셋
+                                } catch (IOException e) {
+                                    log.error("자막 파일의 인코딩 체크 실패. 'UTF-8'로 설정 : {}. Error: {}", originalSubtitlePath, e.getMessage());
+                                    detectedEncoding = "UTF-8";
+                                }
+
+                                fFmpegServiceProcess.convertSubtitleToAss(originalSubtitlePath,outputPath,"맑은 고딕",20, detectedEncoding).block();
+                            } else {
+                                log.info("ass 자막 파일이 이미 존재합니다. : {}", outputPath);
+                            }
+//                            existingEntry.getValue().setSubtitlePath(outputPath);
+                        }
                     }
 
                     // 파일 경로나 자막 경로 중 하나라도 변경된 경우 업데이트 리스트에 추가

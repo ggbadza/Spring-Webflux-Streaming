@@ -16,13 +16,17 @@ import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -359,6 +363,89 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     });
         })
         .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    public Mono<Boolean> convertSubtitleToAss(String inputPath, String outputPath, String fontName, int fontSize, String charEncoding) {
+        return Flux.defer(() -> {
+                    log.info("### FFmpegServiceProcessImpl.convertSubtitleToAss. inputPath: {}, outputPath: {}, fontName: {}, fontSize: {}", inputPath, outputPath, fontName, fontSize);
+                    List<String> command = new ArrayList<>(Arrays.asList(
+                            ffmpegDir,
+                            "-sub_charenc", charEncoding,
+                            "-i", inputPath,
+                            "-c:s", "ass",
+                            "-f", "ass",
+                            "pipe:1"
+                    ));
+
+                    ProcessBuilder pb = new ProcessBuilder(command);
+                    Process process;
+                    try {
+                        process = pb.start();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    // stderr 로그를 별도 스레드에서 버려서 FFmpeg가 블록되지 않도록 구현
+                    Schedulers.boundedElastic().schedule(() -> {
+                        try (InputStream err = process.getErrorStream()) {
+                            byte[] buf = new byte[1024]; // 버퍼 크기
+                            while (err.read(buf) != -1) { /* 버퍼 비움 */ }
+                        } catch (IOException ignored) { }
+                    });
+
+                    // stdout은 DataBufferUtils 로 읽어서 Flux<DataBuffer>로 변환
+                    Flux<DataBuffer> videoFlux = DataBufferUtils.readInputStream(
+                            process::getInputStream,
+                            dataBufferFactory,
+                            4096
+                    );
+
+                    return videoFlux
+                            .doFinally(sig -> {
+                                if (process.isAlive()) process.destroyForcibly();
+                            });
+                })
+                .subscribeOn(Schedulers.boundedElastic())
+                // pipe:1로 받은 데이터를 문자열로 변환하고 수정
+                .reduce(dataBufferFactory.wrap(new byte[0]), (buffer1, buffer2) -> {
+                    // 두 버퍼를 합치기
+                    byte[] bytes1 = new byte[buffer1.readableByteCount()];
+                    byte[] bytes2 = new byte[buffer2.readableByteCount()];
+                    buffer1.read(bytes1);
+                    buffer2.read(bytes2);
+
+                    byte[] combined = new byte[bytes1.length + bytes2.length];
+                    System.arraycopy(bytes1, 0, combined, 0, bytes1.length);
+                    System.arraycopy(bytes2, 0, combined, bytes1.length, bytes2.length);
+
+                    // 버퍼 해제
+                    DataBufferUtils.release(buffer1);
+                    DataBufferUtils.release(buffer2);
+
+                    return dataBufferFactory.wrap(combined);
+                })
+                .map(buffer -> {
+                    // DataBuffer를 문자열로 변환
+                    byte[] bytes = new byte[buffer.readableByteCount()];
+                    buffer.read(bytes);
+                    String content = new String(bytes, StandardCharsets.UTF_8);
+                    DataBufferUtils.release(buffer);
+
+                    // Style 라인 수정
+                    String modifiedContent = content.replaceAll(
+                            "(Style:[^,]*,)Arial(,[0-9]+)",
+                            "$1" + fontName + "," + fontSize
+                    );
+
+                    return modifiedContent;
+                })
+                .flatMap(content -> {
+                    // 수정된 내용을 파일로 저장
+                    DataBuffer buffer = dataBufferFactory.wrap(content.getBytes(StandardCharsets.UTF_8));
+                    return DataBufferUtils.write(Flux.just(buffer), Paths.get(outputPath));
+                })
+                .then(Mono.just(true))  // 성공시 true 반환
+                .onErrorReturn(false);  // 실패시 false 반환
     }
 
 }

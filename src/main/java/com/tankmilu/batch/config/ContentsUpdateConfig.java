@@ -9,6 +9,8 @@ import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
 import com.tankmilu.webflux.repository.folder.DramaFolderTreeRepository;
 import com.tankmilu.webflux.repository.folder.MovieFolderTreeRepository;
+import com.tankmilu.webflux.service.FFmpegService;
+import com.tankmilu.webflux.service.FFmpegServiceProcessImpl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -43,6 +45,8 @@ public class ContentsUpdateConfig {
     private final DramaFolderTreeRepository dramaFolderTreeRepository;
     private final ContentsObjectRepository contentsObjectRepository;
     private final ContentsFileRepository contentsFileRepository;
+
+    private final FFmpegServiceProcessImpl fFmpegService;
 
     // Job 1: FolderTree -> ContentsObject 업데이트 작업
     @Bean
@@ -113,10 +117,10 @@ public class ContentsUpdateConfig {
             @Value("#{jobParameters['type']}") String type,
             @Value("#{jobParameters['folderId']}") Long folderId) {
         return switch (type) {
-            case "anime" -> new ContentsToFileUpdateTasklet<>(animationFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId);
-            case "movie" -> new ContentsToFileUpdateTasklet<>(movieFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId);
-            case "drama" -> new ContentsToFileUpdateTasklet<>(dramaFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId);
-            default -> new ContentsToFileUpdateTasklet<>(null, contentsObjectRepository, contentsFileRepository, type, folderId);
+            case "anime" -> new ContentsToFileUpdateTasklet<>(animationFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
+            case "movie" -> new ContentsToFileUpdateTasklet<>(movieFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
+            case "drama" -> new ContentsToFileUpdateTasklet<>(dramaFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
+            default -> new ContentsToFileUpdateTasklet<>(null, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
         };
     }
 

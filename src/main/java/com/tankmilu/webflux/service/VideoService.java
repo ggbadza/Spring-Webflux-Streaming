@@ -71,6 +71,12 @@ public class VideoService {
     @Value("${app.video.urls.hlsfmp4}")
     public String hlsfmp4Url;
 
+    @Value("${custom.batch.subtitle_folder}")
+    private String tempSubtitleFolder;
+
+    @Value("${custom.batch.hls_folder}")
+    private String tempHlsFolder;
+
 
 
     public VideoMonoRecord getVideoChunk(String name, String rangeHeader) {
@@ -195,50 +201,64 @@ public class VideoService {
         return m3u8Builder.toString();
     }
 
-    public Mono<String> getHlsM3u8(Long fileId, String type) throws IOException {
+    public Mono<String> getHlsM3u8(Long fileId, String type) {
+        Path tempFile = Paths.get(tempHlsFolder, fileId + "." + type + ".hls.m3u8");
         return contentsFileRepository.findFileWithContentInfo(fileId)
-                .flatMap(entity -> // IO에러 처리를 위해 flatMap -> fromCallable 사용
-                        Mono.fromCallable(() -> {
-                            String videoPath = entity.getFullFilePath();
-                            Double videoDuration = ffmpegService.getVideoDuration(videoPath);
+                .flatMap(entity ->
+                        Mono.fromCallable(() -> Files.exists(tempFile))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .flatMap(exists -> {
+                                    if (exists) {
+                                        // 캐싱 파일 존재 시 파일을 읽어서 그대로 반환
+                                        log.info("M3U8 캐싱 파일 존재 : {}", tempFile);
+                                        return Mono.fromCallable(() -> Files.readString(tempFile))
+                                                .subscribeOn(Schedulers.boundedElastic());
+                                    } else {
+                                        // 캐싱 파일 미 존재 시 새로 생성
+                                        return Mono.fromCallable(() -> {
+                                                    log.info("M3U8 캐싱 파일 미존재. 신규 생성 시도 : {}", tempFile);
+                                                    String videoPath   = entity.getFullFilePath();
+                                                    double videoDuration = ffmpegService.getVideoDuration(videoPath);
 
-                            StringBuilder m3u8Builder = new StringBuilder();
+                                                    final int SEGMENT_LENGTH = 10;
+                                                    StringBuilder m3u8Builder = new StringBuilder()
+                                                            .append("#EXTM3U\n")
+                                                            .append("#EXT-X-VERSION:7\n")
+                                                            .append("#EXT-X-TARGETDURATION:10\n")
+                                                            .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
+                                                            .append("#EXT-X-MEDIA-SEQUENCE:0\n");
 
-                            m3u8Builder
-                                    .append("#EXTM3U\n")
-                                    .append("#EXT-X-VERSION:7\n")
-                                    .append("#EXT-X-TARGETDURATION:10\n")
-                                    .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
-                                    .append("#EXT-X-MEDIA-SEQUENCE:0\n");
-                            //        m3u8Builder.append("#EXT-X-MAP:URI="+"hlsinit?fn="+filename+"\n\n");
-                            //        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn=init2.mp4\n\n");
+                                                    for (double start = 0; start < videoDuration; start += SEGMENT_LENGTH) {
+                                                        double duration = Math.min(SEGMENT_LENGTH, videoDuration - start);
+                                                        double endTime  = start + duration;
 
-                            // 세그먼트 최대 길이(초)
-                            final int SEGMENT_LENGTH = 10;
-
-                            for (double start = 0; start < videoDuration; start += SEGMENT_LENGTH) {
-                                // 남은 길이와 최대 길이 중 작은 값을 세그먼트 길이로 선택
-                                double duration = Math.min(SEGMENT_LENGTH, videoDuration - start);
-                                double endTime = start + duration;
-
-                                m3u8Builder
-                                        .append("#EXTINF:").append(duration).append(",\n")
-                                        .append(videoBaseUrl).append(hlstsUrl)
-                                        .append("?fileId=").append(fileId)
-                                        .append("&ss=").append(start)
-                                        .append("&to=").append(endTime)
-                                        .append("&type=").append(type)
-                                        .append("\n");
-                            }
-                            m3u8Builder
-                                    .append("\n")
-                                    .append("#EXT-X-ENDLIST");
-                            return m3u8Builder.toString();
-                        })
-                        // ffmpegService 같은 블로킹 IO는 boundedElastic 스케줄러로 실행
-                        .subscribeOn(Schedulers.boundedElastic())
+                                                        m3u8Builder.append("#EXTINF:")
+                                                                .append(duration).append(",\n")
+                                                                .append(videoBaseUrl).append(hlstsUrl)
+                                                                .append("?fileId=").append(fileId)
+                                                                .append("&ss=").append(start)
+                                                                .append("&to=").append(endTime)
+                                                                .append("&type=").append(type)
+                                                                .append('\n');
+                                                    }
+                                                    m3u8Builder.append("\n#EXT-X-ENDLIST");
+                                                    return m3u8Builder.toString();
+                                                })
+                                                .subscribeOn(Schedulers.boundedElastic())
+                                                .doOnNext(m3u8 -> {
+                                                    try {
+                                                        Files.createDirectories(tempFile.getParent());
+                                                        Files.writeString(tempFile, m3u8, StandardOpenOption.CREATE,
+                                                                StandardOpenOption.TRUNCATE_EXISTING);
+                                                    } catch (IOException e) {
+                                                        log.error("Error M3U8 파일 생성 실패 {}: {}", tempFile, e.getMessage());
+                                                    }
+                                                });
+                                    }
+                                })
                 );
     }
+
 
 
     public String getHlsM3u8Fmp4(String videoPath, String type) throws IOException {
@@ -400,11 +420,18 @@ public class VideoService {
                 .flatMapMany(fileInfo -> {
                     // 권한 미 존재시 에러 발생
                     if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
-                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                        throw new AccessDeniedException("컨텐츠에 대한 권한이 없습니다.");
                     }
                     // 경로가 Null 일시 404 에러 발생
                     if (fileInfo.subtitlePath() == null) {
                         return Flux.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+                    }
+
+                    String tempSubtitlePath = tempSubtitleFolder+"/"+fileId+".f.ass";
+                    Path pathTemp = Paths.get(tempSubtitlePath);
+                    if (Files.exists(pathTemp)) {
+                        log.info("캐싱 자막 파일 존재 확인 : {}",tempSubtitlePath);
+                        return DataBufferUtils.read(pathTemp, dataBufferFactory, 4096);
                     }
                     Path path = Paths.get(fileInfo.getFullSubtitlePath());
                     // 파일 미존재 시 404 에러 발생
@@ -416,20 +443,57 @@ public class VideoService {
     }
 
     public Flux<DataBuffer> getSubtitleFromVideo(Long fileId, String subtitleId, String userPlan) {
-        log.info("### getSubtitleFromVideo. fileId="+fileId+",subtitleId="+subtitleId);
+        log.info("### getSubtitleFromVideo: fileId={}, subtitleId={}, userPlan={}", fileId, subtitleId, userPlan);
+        // 캐시 파일 경로
+        Path tempCachePath = Paths.get(tempSubtitleFolder, fileId + ".v" + subtitleId + ".ass");
+
         return contentsFileRepository.findFileWithContentInfo(fileId)
-                // 파일이 없으면 404 에러 발생
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND)))
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "콘텐츠 정보를 찾을 수 없습니다. fileId: " + fileId)))
                 .flatMapMany(fileInfo -> {
-                    // 권한 미 존재시 에러 발생
                     if (!SubscriptionCodeEnum.comparePermissionLevel(userPlan, fileInfo.subscriptionCode())) {
-                        throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
+                        return Flux.error(new AccessDeniedException("요청된 콘텐츠에 대한 접근 권한이 없습니다."));
                     }
-                    try {
-                        return ffmpegService.getSubtitleFromVideo(fileInfo.getFullFilePath(), subtitleId);
-                    } catch (IOException e) {
-                        return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR));
-                    }
+
+                    // 1. 캐시 존재 여부 비동기 확인
+                    return Mono.fromCallable(() -> Files.exists(tempCachePath))
+                            .subscribeOn(Schedulers.boundedElastic()) // Files.exists는 블로킹 I/O
+                            .flatMapMany(isCached -> {
+                                if (isCached) {
+                                    // 2-1. 캐시된 파일이 있으면 해당 파일 스트림 반환
+                                    log.info("캐시된 자막 파일 사용: {}", tempCachePath);
+                                    return DataBufferUtils.read(tempCachePath, dataBufferFactory, 4096);
+                                } else {
+                                    // 2-2. 캐시된 파일이 없으면 FFmpeg 통해 생성
+                                    log.info("캐시된 자막 파일 없음. FFmpeg 통해 생성 : {}", tempCachePath);
+
+                                    // FFmpeg 서비스로부터 자막 스트림 가져오기
+                                    Flux<DataBuffer> liveSubtitles;
+                                    try {
+                                        liveSubtitles = ffmpegService.getSubtitleFromVideo(fileInfo.getFullFilePath(), subtitleId)
+                                                .onErrorMap(originalError -> {
+                                                    // FFmpeg 서비스에서 발생한 원본 에러 로깅
+                                                    log.error("FFmpeg 자막 추출 중 오류 발생 (fileId: {}, subtitleId: {}): {}",
+                                                            fileId, subtitleId, originalError.getMessage(), originalError);
+                                                    // 클라이언트에게 전달될 에러로 변환
+                                                    return new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "자막 스트림 생성 중 내부 오류가 발생했습니다.", originalError);
+                                                });
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+
+                                    Flux<DataBuffer> streamToClientAndCache = liveSubtitles.cache();
+
+                                    // 캐싱 작업
+                                    DataBufferUtils.write(streamToClientAndCache, tempCachePath)
+                                            .subscribeOn(Schedulers.boundedElastic())
+                                            .doOnSuccess(v -> log.info("자막 캐싱 성공: {}", tempCachePath))
+                                            .doOnError(cacheErr -> log.error("자막 캐싱 실패 {}: {}", tempCachePath, cacheErr.getMessage(), cacheErr))
+                                            .onErrorResume(cacheErr -> Mono.empty()) //
+                                            .subscribe();
+
+                                    return streamToClientAndCache;
+                                }
+                            });
                 });
     }
 
