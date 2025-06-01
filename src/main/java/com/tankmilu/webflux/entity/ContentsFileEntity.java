@@ -42,6 +42,7 @@ public class ContentsFileEntity implements Persistable<Long>, Serializable {
     private String subtitlePath;    // 자막 파일 경로
 
     @Getter
+    @Setter
     @Column("resolution")
     private String resolution;      // 파일 해상도 (예: "1080")
 

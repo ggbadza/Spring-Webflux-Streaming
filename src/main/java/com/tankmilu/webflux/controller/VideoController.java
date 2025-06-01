@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.record.PlayListRecord;
 import com.tankmilu.webflux.record.SubtitleMetadataResponse;
 import com.tankmilu.webflux.record.VideoMonoRecord;
 import com.tankmilu.webflux.security.CustomUserDetails;
@@ -45,28 +46,35 @@ public class VideoController {
     /**
      * 비디오 파일의 범위 요청을 처리함
      * 
-     * @param fn 비디오 파일명
-     * @param bytes 요청 바이트 범위(선택적)
+     * @param fileId 비디오 파일 ID
+     * @param start_bytes 요청 바이트 시작 지점
+     * @param end_bytes 요청 바이트 종료 지점
      * @param rangeHeader HTTP Range 헤더 값
      * @return 요청된 범위의 비디오 데이터 반환
      */
     @GetMapping("${app.video.urls.filerange}")
     public Mono<ResponseEntity<Mono<DataBuffer>>> getVideoRange(
-            @RequestParam String fn,
-            @RequestParam(required = false) String bytes,
+            @RequestParam Long fileId,
+            @RequestParam(required = false) String start_bytes,
+            @RequestParam(required = false) String end_bytes,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
 
         String range;
-        if (bytes != null) range="bytes="+bytes;
-        else range = rangeHeader;
+        if (start_bytes != null && end_bytes != null) {
+            range = "bytes=" + start_bytes + "-" + end_bytes;
+        } else {
+            range = rangeHeader;
+        }
 
-        VideoMonoRecord videoMonoRecord = videoService.getVideoChunk(fn, range);
-        return Mono.just(
-                ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                        .header(HttpHeaders.CONTENT_TYPE, videoMonoRecord.contentType())
-                        .header(HttpHeaders.CONTENT_RANGE, videoMonoRecord.contentRange())
-                        .body(videoMonoRecord.data())
-        );
+        return videoService.getVideoChunk(fileId, range)
+                .map(videoMonoRecord ->
+                        ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                                .header(HttpHeaders.CONTENT_TYPE, videoMonoRecord.contentType())
+                                .header(HttpHeaders.CONTENT_RANGE, videoMonoRecord.contentRange())
+                                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(videoMonoRecord.contentLength())) // Content-Length 추가
+                                .body(videoMonoRecord.data())
+                )
+                .switchIfEmpty(Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).build())); // 비디오 정보를 찾지 못한 경우
     }
 
     /**
@@ -125,6 +133,17 @@ public class VideoController {
                 });
     }
 
+    /**
+     * 커스텀 비디오 플레이리스트를 제공함
+     *
+     * @param fileId 비디오 파일 ID
+     * @return 다양한 해상도 옵션이 포함된 HLS 마스터 플레이리스트 반환
+     */
+    @GetMapping("${app.video.urls.playlist}")
+    public Flux<PlayListRecord> getVideoPlayList(@RequestParam Long fileId) {
+        return videoService.getVideoPlayList(fileId);
+    }
+
 
 
     /**
@@ -149,7 +168,6 @@ public class VideoController {
         return videoService
                 .getHlsTs(fileId, ss, to, type, userDetails.getSubscriptionCode())
                 .subscribeOn(Schedulers.boundedElastic());
-
     }
 
     /**
