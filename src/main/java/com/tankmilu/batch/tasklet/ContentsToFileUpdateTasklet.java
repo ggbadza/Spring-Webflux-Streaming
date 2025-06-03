@@ -208,7 +208,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                                 String detectedEncoding = null;
 
                                 // 자막 파일의 인코딩 체크
-                                byte[] buf = new byte[4096];
+                                byte[] buf = new byte[65536];
                                 try (FileInputStream fis = new FileInputStream(originalSubtitleFile)) {
                                     UniversalDetector detector = new UniversalDetector(null);
                                     int nread;
@@ -218,9 +218,15 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                                     detector.dataEnd();
                                     detectedEncoding = detector.getDetectedCharset();
                                     detector.reset(); // 다음 사용을 위해 리셋
+                                    if (detectedEncoding==null){
+                                        log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}", originalSubtitlePath);
+                                        detectedEncoding = "CP949";
+                                    } else if (detectedEncoding.startsWith("UTF")){
+                                        detectedEncoding="UTF-8";
+                                    }
                                 } catch (IOException e) {
-                                    log.error("자막 파일의 인코딩 체크 실패. 'UTF-8'로 설정 : {}. Error: {}", originalSubtitlePath, e.getMessage());
-                                    detectedEncoding = "UTF-8";
+                                    log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}. Error: {}", originalSubtitlePath, e.getMessage());
+                                    detectedEncoding = "CP949";
                                 }
 
                                 fFmpegServiceProcess.convertSubtitleToAss(originalSubtitlePath,outputPath,"맑은 고딕",20, detectedEncoding).block();

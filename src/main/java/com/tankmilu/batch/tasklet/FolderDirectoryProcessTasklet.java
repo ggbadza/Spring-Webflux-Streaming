@@ -242,6 +242,13 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
                 // 예외 발생 시 무시
             }
         }
+        
+        // 파일 유무 변경 시
+        boolean hasFile= hasFiles(dir);
+        if(entity.getHasFiles()!=hasFile){
+            entity.setHasFiles(hasFile);
+            entity.setChangeCd("Y");
+        }
 
         // 변경 여부와 관계없이 항상 엔티티 반환
         return entity;
