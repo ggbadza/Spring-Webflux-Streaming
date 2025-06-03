@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.bramp.ffmpeg.FFprobe;
 import net.bramp.ffmpeg.probe.FFmpegProbeResult;
 import net.bramp.ffmpeg.probe.FFmpegStream;
+import net.bramp.ffmpeg.shared.CodecType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.InputStreamResource;
@@ -78,7 +79,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
         // subtitle 타입 스트림만 골라 Record로 맵핑
         return probeResult.getStreams().stream()
-                .filter(stream -> stream.codec_type == FFmpegStream.CodecType.SUBTITLE)
+                .filter(stream -> stream.codec_type == CodecType.SUBTITLE)
                 .map(stream -> new SubtitleInfo(
                         "v"+ counter.getAndIncrement(), // AtomicInteger를 이용해 스트림 내 가변변수 사용
                         // tags가 null일 수 있으니 체크
@@ -367,7 +368,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
     public Mono<Boolean> convertSubtitleToAss(String inputPath, String outputPath, String fontName, int fontSize, String charEncoding) {
         return Flux.defer(() -> {
-                    log.info("### FFmpegServiceProcessImpl.convertSubtitleToAss. inputPath: {}, outputPath: {}, fontName: {}, fontSize: {}", inputPath, outputPath, fontName, fontSize);
+                    log.info("### FFmpegServiceProcessImpl.convertSubtitleToAss. inputPath: {}, outputPath: {}, fontName: {}, fontSize: {}, charEncoding: {}", inputPath, outputPath, fontName, fontSize, charEncoding);
                     List<String> command = new ArrayList<>(Arrays.asList(
                             ffmpegDir,
                             "-sub_charenc", charEncoding,
