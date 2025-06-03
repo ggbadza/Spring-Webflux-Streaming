@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.record.ContentsInfoWithFilesResponse;
 import com.tankmilu.webflux.record.ContentsResponse;
 import com.tankmilu.webflux.record.FileInfoSummaryResponse;
 import com.tankmilu.webflux.record.RecommendContentsResponse;
@@ -77,6 +78,20 @@ public class ContentsController {
     public Flux<FileInfoSummaryResponse> getContentsFiles(
             @RequestParam Long contentsId) {
         return contentsService.getContentsFiles(contentsId);
+    }
+
+    /**
+     * 컨텐츠 파일의 정보와 각 컨텐츠에 속한 비디오 파일을 조회함
+     * (비디오 시청 페이지용 API)
+     *
+     * @param fileId 파일 ID
+     * @return 컨텐츠 정보와 비디오 파일 리스트가 포함된 응답 객체를 반환
+     *
+     */
+    @RequestMapping("${app.contents.urls.contents_info_with_video_files}")
+    public Mono<ContentsInfoWithFilesResponse> getContentsInfoWithVideoFiles(
+            @RequestParam Long fileId) {
+        return contentsService.getContentsInfoWithVideoFiles(fileId);
     }
 
 }

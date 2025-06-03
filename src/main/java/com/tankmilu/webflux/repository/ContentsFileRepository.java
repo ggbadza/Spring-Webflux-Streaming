@@ -3,6 +3,7 @@ package com.tankmilu.webflux.repository;
 import com.tankmilu.webflux.entity.ContentsFileEntity;
 import com.tankmilu.webflux.entity.UserAuthorityEntity;
 import com.tankmilu.webflux.record.FileInfoRecord;
+import com.tankmilu.webflux.record.FileInfoSummaryResponse;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
@@ -32,6 +33,14 @@ public interface ContentsFileRepository extends R2dbcRepository<ContentsFileEnti
         WHERE a.file_id = :fileId
         """)
     Mono<FileInfoRecord> findFileWithContentInfo(Long fileId);
+
+    @Query("""
+        SELECT b.*
+        FROM webflux.contents_file_entity a
+        INNER JOIN webflux.contents_file_entity b ON b.contents_id = a.contents_id
+        WHERE a.file_id = :fileId
+        """)
+    Flux<ContentsFileEntity> findAllFilesSharingSameContentAsFileId(Long fileId);
 
 
 }

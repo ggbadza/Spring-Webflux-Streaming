@@ -1,6 +1,9 @@
 package com.tankmilu.webflux.service;
 
+import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
+import com.tankmilu.webflux.exception.ContentsNotFoundException;
+import com.tankmilu.webflux.record.ContentsInfoWithFilesResponse;
 import com.tankmilu.webflux.record.ContentsResponse;
 import com.tankmilu.webflux.record.FileInfoSummaryResponse;
 import com.tankmilu.webflux.record.RecommendContentsResponse;
@@ -9,12 +12,14 @@ import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.UserContentsRecommendRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -110,6 +115,52 @@ public class ContentsService {
                             fileEntity.getResolution(),
                             fileEntity.getCreatedAt()
                     );
+                });
+    }
+
+    public Mono<ContentsInfoWithFilesResponse> getContentsInfoWithVideoFiles(Long fileId) {
+        return contentsFileRepository.findAllFilesSharingSameContentAsFileId(fileId)
+                .collectList()
+                .flatMap(relatedFileEntities -> {
+                    if (relatedFileEntities.isEmpty()) {
+                        // 관련된 파일이 하나도 없으면, 컨텐츠 ID를 알 수 없으므로 에러 처리
+                        return Mono.error(new ContentsNotFoundException("(fileId: " + fileId + ") 에 대한 파일이 없습니다.", "1101", HttpStatus.NO_CONTENT));
+                    }
+
+                    // 조회된 파일 목록에서 contentsId를 추출.
+                    Long sharedContentsId = relatedFileEntities.getFirst().getContentsId();
+                    if (sharedContentsId == null) {
+                        return Mono.error(new ContentsNotFoundException("(fileId: " + fileId + ") 에 대한 컨텐츠가 없습니다.", "1102", HttpStatus.NO_CONTENT));
+                    }
+
+
+                    // List<ContentsFileEntity>를 List<FileInfoSummaryResponse>로 변환.
+                    List<FileInfoSummaryResponse> filesInfoList = relatedFileEntities.stream()
+                            .map(entity -> new FileInfoSummaryResponse(
+                                    entity.getFileId(),
+                                    entity.getFileName(),
+                                    entity.getContentsId(),
+                                    (entity.getSubtitlePath() == null || entity.getSubtitlePath().isEmpty()), // 자막 존재 여부만 체크
+                                    entity.getResolution(),
+                                    entity.getCreatedAt()
+                            ))
+                            .collect(Collectors.toList());
+
+                    // 추출된 contentsId를 사용하여 ContentsObjectEntity (컨텐츠 정보)를 조회
+                    Mono<ContentsObjectEntity> contentsObjectMono = contentsObjectRepository.findById(sharedContentsId);
+
+                    //  ContentsObjectEntity 정보와 List<FileInfoSummaryResponse>를 조합하여 ContentsInfoWithFilesResponse를 생성
+                    return contentsObjectMono
+                            .map(contentsObject -> new ContentsInfoWithFilesResponse(
+                                    contentsObject.getId(), // 또는 sharedContentsId 사용
+                                    contentsObject.getTitle(),
+                                    contentsObject.getDescription(),
+                                    contentsObject.getThumbnailUrl(),
+                                    contentsObject.getPosterUrl(),
+                                    contentsObject.getType(),
+                                    filesInfoList
+                            ))
+                            .switchIfEmpty(Mono.error(new ContentsNotFoundException("(contentsId: "+ sharedContentsId +") 에 대한 컨텐츠 정보를 찾을 수 없습니다.", "1103", HttpStatus.NO_CONTENT)));
                 });
     }
 

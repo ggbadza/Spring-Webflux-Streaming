@@ -44,6 +44,7 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     @Column("modified_at")
     private LocalDateTime modifiedAt;
 
+    @Setter
     @Column("has_files")
     private Boolean hasFiles;
 

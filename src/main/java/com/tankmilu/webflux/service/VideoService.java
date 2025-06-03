@@ -634,7 +634,7 @@ public class VideoService {
 
         // 지원하는 비디오 Enum을 이용해 리스트 생성
         for (VideoResolutionEnum resolution : VideoResolutionEnum.values()) {
-            if (Integer.parseInt(heightPixel) > resolution.getHeight()) {
+            if (Integer.parseInt(heightPixel) >= resolution.getHeight()) {
                 PlayListRecord record = new PlayListRecord(
                         resolution.getType(),
                         videoBaseUrl+hlsm3u8Url+"?fileId="+ fileId +"&type="+resolution.getType(),
@@ -649,7 +649,7 @@ public class VideoService {
         PlayListRecord record = new PlayListRecord(
                 "0",
                 videoBaseUrl+filerangeUrl+"?fileId="+ fileId,
-                heightPixel,
+                "0",
                 fileId,
                 "video/mp4"
         );
