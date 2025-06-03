@@ -68,16 +68,27 @@ public class JwtProvider {
         return new JwtAccessAndRefreshRecord(accessToken,null,createdDate,accessExpirationDate,null);
     }
 
-    public JwtAccessAndRefreshRecord createRefreshToken(UserAuthRecord userAuthRecord) {
+    public JwtAccessAndRefreshRecord createRefreshToken(UserAuthRecord userAuthRecord){
+        return createRefreshToken(userAuthRecord, "N");
+    }
+
+    public JwtAccessAndRefreshRecord createRefreshToken(UserAuthRecord userAuthRecord, String rememberMe) {
 
 
         LocalDateTime createdDate = LocalDateTime.now();
-        LocalDateTime refreshExpirationDate = createdDate.plus(accessTokenExpirationPeriod, ChronoUnit.MILLIS);
+        LocalDateTime refreshExpirationDate;
+        if (rememberMe.equals("Y")){
+            refreshExpirationDate = createdDate.plus(refreshTokenExpirationPeriod*7, ChronoUnit.MILLIS);
+        } else {
+            rememberMe="N";
+            refreshExpirationDate = createdDate.plus(refreshTokenExpirationPeriod, ChronoUnit.MILLIS);
+        }
 
         String refreshToken=Jwts.builder()
                 .subject(userAuthRecord.userId())
                 .claims()
                 .add("sessionCode", userAuthRecord.sessionCode()) // 세션 코드 추가
+                .add("rememberMe", rememberMe)
                 .issuedAt(Date.from(createdDate.atZone(ZoneId.systemDefault()).toInstant()))
                 .expiration(Date.from(refreshExpirationDate.atZone(ZoneId.systemDefault()).toInstant()))
                 .and() // 클레임 설정 종료

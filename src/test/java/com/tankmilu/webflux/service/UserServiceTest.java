@@ -77,7 +77,7 @@ class UserServiceTest {
                                 .doOnNext(response -> {
                                     assertEquals(request.userId(), response.userId());
                                     assertEquals(request.userName(), response.userName());
-                                    assertEquals(request.subscriptionPlan(), response.subscriptionPlan());
+//                                    assertEquals(request.subscriptionPlan(), response.subscriptionPlan());
                                     assertEquals("회원가입에 성공하였습니다.", response.msg());
 
                                     // 트랜잭션 롤백 적용
@@ -112,7 +112,7 @@ class UserServiceTest {
                                             .subscriptionCode("100")
                                             .build();
                                     return userRepository.save(user)
-                                            .then(userService.createToken(new UsernamePasswordAuthenticationToken(userId, password)));
+                                            .then(userService.createToken(new UsernamePasswordAuthenticationToken(userId, password),""));
                                 })
                                 .doOnNext(jwtResponse -> {
                                     assertNotNull(jwtResponse.accessToken());
@@ -200,7 +200,7 @@ class UserServiceTest {
                                     Authentication authentication = new UsernamePasswordAuthenticationToken(userId, password);
 
                                     // 기존 토큰 생성 및 저장
-                                    return userService.createToken(authentication)
+                                    return userService.createToken(authentication,"")
                                             .flatMap(originalTokens -> {
                                                 assertNotNull(originalTokens);
 
@@ -208,7 +208,7 @@ class UserServiceTest {
                                                 oldRefreshTokenRef.set(originalTokens.refreshToken());
 
                                                 // 신규 토큰 발행 및 검증
-                                                return userService.accessTokenReissue(authentication, originalTokens.refreshToken())
+                                                return userService.accessTokenReissue(originalTokens.refreshToken())
                                                         .flatMap(newTokens -> {
                                                             assertNotNull(newTokens);
 

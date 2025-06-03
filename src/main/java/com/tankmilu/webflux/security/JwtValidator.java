@@ -24,10 +24,10 @@ public class JwtValidator {
             return true;
         } catch (SignatureException e) {
             // 서명 오류
-            System.out.println("Invalid JWT signature: " + e.getMessage());
+            log.error("Invalid JWT signature: {}", e.getMessage());
         } catch (Exception e) {
             // 기타 오류
-            System.out.println("Invalid JWT token: " + e.getMessage());
+            log.error("Invalid JWT token: {}", e.getMessage());
         }
         return false;
     }
@@ -50,6 +50,16 @@ public class JwtValidator {
                 .parseSignedClaims(refreshToken)
                 .getPayload()
                 .get("sessionCode", String.class);
+    }
+
+    // 토큰에서 세션 코드 추출
+    public String extractRememberMe(String refreshToken) {
+        return Jwts.parser()
+                .verifyWith(jwtProvider.getSecretKeyHmac())
+                .build()
+                .parseSignedClaims(refreshToken)
+                .getPayload()
+                .get("rememberMe", String.class);
     }
 
     // 토큰에서 subscriptionPlan 코드 추출

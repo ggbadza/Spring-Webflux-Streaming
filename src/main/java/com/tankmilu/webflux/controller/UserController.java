@@ -44,7 +44,7 @@ public class UserController {
                         )
                 )
                 .flatMap(authentication ->
-                        userService.createToken(authentication)
+                        userService.createToken(authentication,loginRequest.rememberMe())
                                 .map(this::buildTokenResponse)
                 );
     }
@@ -64,9 +64,7 @@ public class UserController {
         }
         String refreshToken = cookie.getValue();
 
-        return ReactiveSecurityContextHolder.getContext()
-                .map(SecurityContext::getAuthentication)
-                .flatMap(authentication -> userService.accessTokenReissue(authentication, refreshToken))
+        return userService.accessTokenReissue(refreshToken)
                 .map(this::buildTokenResponse);
     }
 

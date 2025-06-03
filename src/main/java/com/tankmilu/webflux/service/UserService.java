@@ -19,12 +19,12 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -47,7 +47,7 @@ public class UserService {
 
     private final TransactionalOperator transactionalOperator;
 
-    public Mono<JwtAccessAndRefreshRecord> createToken(Authentication authentication) {
+    public Mono<JwtAccessAndRefreshRecord> createToken(Authentication authentication, String rememberMe) {
         String userId = authentication.getName();
         // 권한 목록 추출
         List<String> roles = authentication.getAuthorities().stream()
@@ -65,7 +65,7 @@ public class UserService {
                             user.getSubscriptionCode(),
                             UUID.randomUUID().toString());
                     JwtAccessAndRefreshRecord accessToken = jwtProvider.createAccessToken(userAuthRecord);
-                    JwtAccessAndRefreshRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord refreshToken = jwtProvider.createRefreshToken(userAuthRecord, rememberMe);
                     return Tuples.of(userAuthRecord, accessToken, refreshToken);
                 })
                 // Refresh 토큰 엔티티 생성, 다시 튜플로 묶어서 리턴
@@ -102,8 +102,7 @@ public class UserService {
                 .onErrorResume(e -> Mono.error(new Exception("리프레시 토큰 발급에 실패하였습니다.", e)));
     }
 
-    public Mono<JwtAccessAndRefreshRecord> accessTokenReissue(Authentication authentication,
-                                                              String refreshToken) {
+    public Mono<JwtAccessAndRefreshRecord> accessTokenReissue(String refreshToken) {
         // RefreshToken 검사
         if (!jwtValidator.validateToken(refreshToken)) {
             return Mono.error(new RuntimeException("RefreshToken 이 유효하지 않습니다."));
@@ -111,7 +110,7 @@ public class UserService {
         // 토큰에서 사용자 정보 추출
         String userId = jwtValidator.extractUserId(refreshToken);
         String sessionCode = jwtValidator.extractSessionCode(refreshToken);
-        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+        String rememberMe = jwtValidator.extractRememberMe(refreshToken);
 
         // 세션 코드로 RefreshTokenEntity 조회
         return jwtRefreshTokenRepository.findById(sessionCode)
@@ -135,13 +134,13 @@ public class UserService {
                     // UserAuthRecord 생성
                     UserAuthRecord userAuthRecord = new UserAuthRecord(
                             userId,
-                            authorities.stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()),
+                            Collections.emptyList(), // todo - refreshToken에서 권한 가져올 수 있게 변경
                             user.getSubscriptionCode(),
                             newSessionCode
                     );
                     // 새 AccessToken, RefreshToken 발행
                     JwtAccessAndRefreshRecord newAccessToken = jwtProvider.createAccessToken(userAuthRecord);
-                    JwtAccessAndRefreshRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord);
+                    JwtAccessAndRefreshRecord newRefreshToken = jwtProvider.createRefreshToken(userAuthRecord, rememberMe);
                     // 새 RefreshTokenEntity 생성
                     JwtRefreshTokenEntity newEntity = JwtRefreshTokenEntity.builder()
                             .sessionCode(newSessionCode)
