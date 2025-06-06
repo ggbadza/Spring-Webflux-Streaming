@@ -2,11 +2,9 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
+import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
 import com.tankmilu.webflux.exception.ContentsNotFoundException;
-import com.tankmilu.webflux.record.ContentsInfoWithFilesResponse;
-import com.tankmilu.webflux.record.ContentsResponse;
-import com.tankmilu.webflux.record.FileInfoSummaryResponse;
-import com.tankmilu.webflux.record.RecommendContentsResponse;
+import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.UserContentsRecommendRepository;
@@ -31,6 +29,8 @@ public class ContentsService {
     private final ContentsFileRepository contentsFileRepository;
 
     private final UserContentsRecommendRepository userContentsRecommendRepository;
+
+    private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
 
     public Mono<ContentsResponse> getContentsInfo(Long contentsId) {
         return contentsObjectRepository.findById(contentsId)
@@ -140,7 +140,7 @@ public class ContentsService {
                                     entity.getFileId(),
                                     entity.getFileName(),
                                     entity.getContentsId(),
-                                    (entity.getSubtitlePath() == null || entity.getSubtitlePath().isEmpty()), // 자막 존재 여부만 체크
+                                    (entity.getSubtitlePath() != null && !entity.getSubtitlePath().isEmpty()), // 자막 존재 여부만 체크
                                     entity.getResolution(),
                                     entity.getCreatedAt()
                             ))
@@ -162,6 +162,21 @@ public class ContentsService {
                             ))
                             .switchIfEmpty(Mono.error(new ContentsNotFoundException("(contentsId: "+ sharedContentsId +") 에 대한 컨텐츠 정보를 찾을 수 없습니다.", "1103", HttpStatus.NO_CONTENT)));
                 });
+    }
+
+    public Flux<ContentsSearchResponse> searchContentsByQuery(String query) {
+        log.info("Searching across title, description, and keywords for query: {}", query);
+        return contentsObjectDocumentRepository.searchByQueryInTitleAndDescriptionAndKeywords(query)
+                .map(document -> new ContentsSearchResponse( // ContentsObjectDocument를 DTO로 변환
+                        document.getContentsId(),
+                        document.getTitle(),
+                        document.getDescription(),
+                        document.getType(),
+//                        document.getKeywords(),
+                        document.getThumbnailUrl()
+                ))
+                .doOnComplete(() -> log.info("Multi-field search for '{}' completed.", query))
+                .doOnError(e -> log.error("Multi-field search for '{}' failed: {}", query, e.getMessage(), e));
     }
 
 

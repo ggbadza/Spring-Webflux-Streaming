@@ -456,7 +456,7 @@ public class VideoService {
                         throw new AccessDeniedException("폴더에 대한 권한이 없습니다.");
                     }
                     // 실제 자막 파일 존재시 첫 번째 항목에 추가
-                    if (fileInfo.subtitlePath() != null) {
+                    if (fileInfo.subtitlePath() != null && !fileInfo.subtitlePath().isEmpty()) {
                         subtitleInfoList.add(new SubtitleInfo("f", "kor"));
                     }
                     // 비디오 내부 자막 스트림 정보 추가
@@ -608,6 +608,7 @@ public class VideoService {
                                         contentsFileRepository.findById(fileId) // 엔티티를 다시 로드하여 업데이트
                                                 .flatMap(entityToUpdate -> {
                                                     entityToUpdate.setResolution(resolution);
+                                                    entityToUpdate.setNewRecord(false);
                                                     return contentsFileRepository.save(entityToUpdate);
                                                 })
                                                 .doOnSuccess(savedEntity -> log.info("R2DBC - fileId: {}의 해상도 정보 캐싱 성공.", fileId))

@@ -1,7 +1,11 @@
 package com.tankmilu.batch.tasklet;
 
+import com.tankmilu.webflux.entity.ContentsKeywordsEntity;
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
+import com.tankmilu.webflux.es.document.ContentsObjectDocument;
+import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
+import com.tankmilu.webflux.repository.ContentsKeywordsRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
 import lombok.AllArgsConstructor;
@@ -23,6 +27,8 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
     private final FolderTreeRepository<T> folderRepository;
     private final ContentsObjectRepository contentsRepository;
+    private final ContentsKeywordsRepository contentsKeywordsRepository;
+    private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
     private final String contentType; // "anime", "movie", "drama" 등
 
     @Override
@@ -81,11 +87,59 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
         log.info("로드된 폴더 엔티티 수: {}", folderEntities.size());
 
-        // 2. ContentsObjectEntity 로드 (폴더 ID로 그룹화)
+        // 2. ContentsObjectEntity 로드
         List<ContentsObjectEntity> existingContents = contentsRepository.findAll()
                 .collectList()
                 .block();
 
+        // --- Elasticsearch 인덱스 비우기 로직 시작 ---
+        log.info("Elasticsearch 인덱스 'contents'의 모든 도큐먼트를 비웁니다.");
+        try {
+            // deleteAll()은 Mono<Void>를 반환하며, 모든 삭제 작업이 완료될 때까지 블록합니다.
+            contentsObjectDocumentRepository.deleteAll().block();
+            log.info("Elasticsearch 인덱스 'contents' 비우기 완료.");
+        } catch (Exception e) {
+            log.error("Elasticsearch 인덱스를 비우는 중 오류 발생: {}", e.getMessage(), e);
+            // 오류 발생 시에도 작업을 계속 진행할지 여부는 비즈니스 로직에 따라 결정
+            // return RepeatStatus.FINISHED; // 오류 시 즉시 종료하려면 주석 해제
+        }
+        // --- Elasticsearch 인덱스 비우기 로직 끝 ---
+
+        // ContentsObjectEntity를 이용해서 ContentsKeywordsEntity들을 가져오고, 그것들을 ContentsObjectDocument에 삽입하는 로직
+        if (existingContents != null && !existingContents.isEmpty()) {
+            log.info("기존 ContentsObjectEntity들을 사용하여 Elasticsearch에 인덱싱 시작.");
+            for (ContentsObjectEntity content : existingContents) {
+                // 각 ContentsObjectEntity의 seriesId로 키워드 조회 (R2DBC)
+                // block()을 사용하여 비동기 결과를 동기적으로 기다립니다.
+                List<String> keywords = contentsKeywordsRepository.findBySeriesId(content.getSeriesId())
+                        .map(ContentsKeywordsEntity::getKeyword)
+                        .collectList() // Flux<String>을 Mono<List<String>>으로 변환
+                        .block(); // 키워드 리스트를 얻을 때까지 블록
+
+                // 키워드가 null이거나 비어있지 않다면 ContentsObjectDocument 생성 및 저장
+                ContentsObjectDocument document = ContentsObjectDocument.builder()
+                        .contentsId(content.getContentsId())
+                        .title(content.getTitle())
+                        .description(content.getDescription())
+                        .type(content.getType())
+                        .thumbnailUrl(content.getThumbnailUrl())
+                        .modifiedAt(content.getModifiedAt())
+                        .keywords(keywords) // 조회된 키워드 리스트 할당
+                        .build();
+
+                // Elasticsearch에 ContentsObjectDocument 저장 (UPSERT 기능)
+                // block()을 사용하여 비동기 저장을 동기적으로 기다립니다.
+                contentsObjectDocumentRepository.save(document)
+                        .block(); // 저장 완료될 때까지 블록
+                log.debug("ContentsObjectDocument 저장 완료: ContentsId={}, Title='{}'", content.getContentsId(), content.getTitle());
+            }
+            log.info("기존 ContentsObjectEntity들을 사용하여 Elasticsearch 인덱싱 완료.");
+        } else {
+            log.info("인덱싱할 기존 ContentsObjectEntity가 없습니다.");
+        }
+
+
+        // ContentsObjectEntity를 폴더 ID로 그룹화 수행
         Map<Long, ContentsObjectEntity> existingContentsMap = new HashMap<>();
         if (existingContents != null) {
             for (ContentsObjectEntity content : existingContents) {

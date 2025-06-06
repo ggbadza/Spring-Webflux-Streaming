@@ -53,6 +53,9 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Column("subscription_code")
     private String subscriptionCode;
 
+    @Column("series_id")
+    private String seriesId;
+
     @Transient
     private boolean isNewRecord;
 

@@ -4,7 +4,9 @@ import com.tankmilu.batch.tasklet.ContentsFileSaveTasklet;
 import com.tankmilu.batch.tasklet.ContentsToFileUpdateTasklet;
 import com.tankmilu.batch.tasklet.FolderToContentsUpdateTasklet;
 import com.tankmilu.webflux.entity.ContentsFileEntity;
+import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
+import com.tankmilu.webflux.repository.ContentsKeywordsRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
 import com.tankmilu.webflux.repository.folder.DramaFolderTreeRepository;
@@ -45,6 +47,8 @@ public class ContentsUpdateConfig {
     private final DramaFolderTreeRepository dramaFolderTreeRepository;
     private final ContentsObjectRepository contentsObjectRepository;
     private final ContentsFileRepository contentsFileRepository;
+    private final ContentsKeywordsRepository contentsKeywordsRepository;
+    private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
 
     private final FFmpegServiceProcessImpl fFmpegService;
 
@@ -72,11 +76,11 @@ public class ContentsUpdateConfig {
             @Value("#{jobParameters['type']}") String type) {
         return switch (type) {
             case "anime" -> new FolderToContentsUpdateTasklet<>(
-                    animationFolderTreeRepository, contentsObjectRepository, "anime");
+                    animationFolderTreeRepository, contentsObjectRepository, contentsKeywordsRepository,contentsObjectDocumentRepository,"anime");
             case "movie" -> new FolderToContentsUpdateTasklet<>(
-                    movieFolderTreeRepository, contentsObjectRepository, "movie");
+                    movieFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"movie");
             case "drama" -> new FolderToContentsUpdateTasklet<>(
-                    dramaFolderTreeRepository, contentsObjectRepository, "drama");
+                    dramaFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"drama");
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }

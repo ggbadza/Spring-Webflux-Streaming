@@ -1,17 +1,11 @@
 package com.tankmilu.webflux.controller;
 
-import com.tankmilu.webflux.record.ContentsInfoWithFilesResponse;
-import com.tankmilu.webflux.record.ContentsResponse;
-import com.tankmilu.webflux.record.FileInfoSummaryResponse;
-import com.tankmilu.webflux.record.RecommendContentsResponse;
+import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.ContentsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -92,6 +86,18 @@ public class ContentsController {
     public Mono<ContentsInfoWithFilesResponse> getContentsInfoWithVideoFiles(
             @RequestParam Long fileId) {
         return contentsService.getContentsInfoWithVideoFiles(fileId);
+    }
+
+    /**
+     * 검색어를 통해 엘라스틱서치에서 콘텐츠를 조회합니다.
+     * 제목, 설명, 키워드 필드에서 검색어가 포함된 콘텐츠를 찾습니다.
+     *
+     * @param query 검색어
+     * @return 검색 결과로 ContentsObjectDocument 리스트를 반환하는 Flux
+     */
+    @GetMapping("${app.contents.urls.search}") // 새로운 URL 경로
+    public Flux<ContentsSearchResponse> searchContentsByKeyword(@RequestParam String query) {
+        return contentsService.searchContentsByQuery(query);
     }
 
 }

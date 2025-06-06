@@ -20,7 +20,7 @@ services:
 #    volumes: # 스트리밍 서버와 연결할 미디어 볼륨
 #      - "D:\\:/mnt/host/d"
     environment:
-      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_PROFILES_ACTIVE=dev
     networks:
       - app-network
 
@@ -38,8 +38,28 @@ services:
     networks:
       - app-network
 
+  elasticsearch:
+    image: elasticsearch:7.17.10
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # 보안 비활성화 (개발/테스트용, 프로덕션에서는 활성화 권장)
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - app-network
+    healthcheck:
+      test: [ "CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
 volumes:
   mysql_data:
+  elasticsearch_data:
 
 networks:
   app-network:
