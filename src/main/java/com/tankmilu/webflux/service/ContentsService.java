@@ -2,6 +2,7 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
+import com.tankmilu.webflux.es.document.ContentsObjectDocument;
 import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
 import com.tankmilu.webflux.exception.ContentsNotFoundException;
 import com.tankmilu.webflux.record.*;
@@ -166,17 +167,36 @@ public class ContentsService {
 
     public Flux<ContentsSearchResponse> searchContentsByQuery(String query) {
         log.info("Searching across title, description, and keywords for query: {}", query);
-        return contentsObjectDocumentRepository.searchByQueryInTitleAndDescriptionAndKeywords(query)
-                .map(document -> new ContentsSearchResponse( // ContentsObjectDocument를 DTO로 변환
+
+        final int MAX_RESULTS = 30;
+
+        // 1. title 필드에서 검색
+        Flux<ContentsObjectDocument> titleSearchResults = contentsObjectDocumentRepository
+                .searchByTitle(query)
+                .doOnNext(doc -> log.debug("타이틀 검색 결과: {}", doc.getTitle()))
+                .doOnError(e -> log.error("쿼리 '{}' 에 대한 타이틀 검색 실패: {}", query, e.getMessage(), e));
+
+        // 2. description 및 keywords 필드에서 검색
+        Flux<ContentsObjectDocument> descriptionKeywordsSearchResults = contentsObjectDocumentRepository
+                .searchByQueryInDescriptionAndKeywords(query)
+                .doOnNext(doc -> log.debug("설명/키워드 검색 결과: {}", doc.getTitle()))
+                .doOnError(e -> log.error("쿼리 '{}' 에 대한 설명/키워드 검색 실패: {}", query, e.getMessage(), e));
+
+        // 3. 두 검색 결과를 합치고 중복 제거 후 DTO로 변환
+        return Flux.concat(titleSearchResults, descriptionKeywordsSearchResults)
+                .distinct(ContentsObjectDocument::getContentsId)
+//                .log("AfterDistinct")
+                .take(MAX_RESULTS)
+                .map(document -> new ContentsSearchResponse(
                         document.getContentsId(),
                         document.getTitle(),
                         document.getDescription(),
                         document.getType(),
-//                        document.getKeywords(),
-                        document.getThumbnailUrl()
+                        document.getThumbnailUrl(),
+                        document.getModifiedAt()
                 ))
-                .doOnComplete(() -> log.info("Multi-field search for '{}' completed.", query))
-                .doOnError(e -> log.error("Multi-field search for '{}' failed: {}", query, e.getMessage(), e));
+                .doOnComplete(() -> log.info("쿼리 '{}' 검색 완료.", query))
+                .doOnError(e -> log.error("쿼리 '{}' 검색 실패: {}", query, e.getMessage(), e));
     }
 
 

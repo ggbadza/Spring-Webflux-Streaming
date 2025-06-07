@@ -92,12 +92,12 @@ public class ContentsController {
      * 검색어를 통해 엘라스틱서치에서 콘텐츠를 조회합니다.
      * 제목, 설명, 키워드 필드에서 검색어가 포함된 콘텐츠를 찾습니다.
      *
-     * @param query 검색어
+     * @param contentsSearchRequest 검색어
      * @return 검색 결과로 ContentsObjectDocument 리스트를 반환하는 Flux
      */
-    @GetMapping("${app.contents.urls.search}") // 새로운 URL 경로
-    public Flux<ContentsSearchResponse> searchContentsByKeyword(@RequestParam String query) {
-        return contentsService.searchContentsByQuery(query);
+    @PostMapping("${app.contents.urls.search}") // 새로운 URL 경로
+    public Flux<ContentsSearchResponse> searchContentsByKeyword(@RequestBody ContentsSearchRequest contentsSearchRequest) {
+        return contentsService.searchContentsByQuery(contentsSearchRequest.query());
     }
 
 }

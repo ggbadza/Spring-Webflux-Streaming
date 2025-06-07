@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.record;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ContentsSearchResponse(
@@ -8,6 +9,7 @@ public record ContentsSearchResponse(
         String description,
         String type,
 //        List<String> keywords,
-        String thumbnailUrl
+        String thumbnailUrl,
+        LocalDateTime modifiedAt
 ) {
 }

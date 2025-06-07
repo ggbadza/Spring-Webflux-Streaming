@@ -41,7 +41,7 @@ dependencies {
 	developmentOnly 'org.springframework.boot:spring-boot-devtools:3.3.8-SNAPSHOT'
 	implementation 'com.h2database:h2:2.2.224'
 	implementation 'io.r2dbc:r2dbc-h2:1.0.0.RELEASE'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.8-SNAPSHOT'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.8'
 	testImplementation 'io.projectreactor:reactor-test:3.6.13'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.5'
 

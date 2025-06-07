@@ -10,4 +10,12 @@ public interface ContentsObjectDocumentRepository extends ReactiveElasticsearchR
     @Query("{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"title\", \"description\", \"keywords\"], \"type\": \"best_fields\", \"analyzer\": \"korean\"}}")
     Flux<ContentsObjectDocument> searchByQueryInTitleAndDescriptionAndKeywords(String query);
 
+    @Query("{\"match\": {\"title\": {\"query\": \"?0\", \"analyzer\": \"korean\"}}}")
+    Flux<ContentsObjectDocument> searchByQueryInTitle(String query);
+
+    Flux<ContentsObjectDocument> searchByTitle(String query);
+
+    @Query("{\"multi_match\": {\"query\": \"?0\", \"fields\": [\"description\", \"keywords\"], \"type\": \"best_fields\", \"analyzer\": \"korean\"}}")
+    Flux<ContentsObjectDocument> searchByQueryInDescriptionAndKeywords(String query);
+
 }

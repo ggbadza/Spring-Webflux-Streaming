@@ -46,7 +46,6 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Column("created_at")
     private LocalDateTime createdAt;
 
-    @CreatedDate
     @Column("modified_at")
     private LocalDateTime modifiedAt;
 
