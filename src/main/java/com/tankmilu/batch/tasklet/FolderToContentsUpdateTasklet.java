@@ -93,16 +93,16 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
                 .block();
 
         // --- Elasticsearch 인덱스 비우기 로직 시작 ---
-        log.info("Elasticsearch 인덱스 'contents'의 모든 도큐먼트를 비웁니다.");
-        try {
-            // deleteAll()은 Mono<Void>를 반환하며, 모든 삭제 작업이 완료될 때까지 블록합니다.
-            contentsObjectDocumentRepository.deleteAll().block();
-            log.info("Elasticsearch 인덱스 'contents' 비우기 완료.");
-        } catch (Exception e) {
-            log.error("Elasticsearch 인덱스를 비우는 중 오류 발생: {}", e.getMessage(), e);
-            // 오류 발생 시에도 작업을 계속 진행할지 여부는 비즈니스 로직에 따라 결정
-            // return RepeatStatus.FINISHED; // 오류 시 즉시 종료하려면 주석 해제
-        }
+//        log.info("Elasticsearch 인덱스 'contents'의 모든 도큐먼트를 비웁니다.");
+//        try {
+//            // deleteAll()은 Mono<Void>를 반환하며, 모든 삭제 작업이 완료될 때까지 블록합니다.
+//            contentsObjectDocumentRepository.deleteAll().block();
+//            log.info("Elasticsearch 인덱스 'contents' 비우기 완료.");
+//        } catch (Exception e) {
+//            log.error("Elasticsearch 인덱스를 비우는 중 오류 발생: {}", e.getMessage(), e);
+//            // 오류 발생 시에도 작업을 계속 진행할지 여부는 비즈니스 로직에 따라 결정
+//            // return RepeatStatus.FINISHED; // 오류 시 즉시 종료하려면 주석 해제
+//        }
         // --- Elasticsearch 인덱스 비우기 로직 끝 ---
 
         // ContentsObjectEntity를 이용해서 ContentsKeywordsEntity들을 가져오고, 그것들을 ContentsObjectDocument에 삽입하는 로직
@@ -151,8 +151,11 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
         log.info("기존 콘텐츠 엔티티 수: {}", existingContentsMap.size());
 
-        // 3. 파일이 있는 폴더에 대해 ContentsObjectEntity 업데이트 또는 생성
+        // 3-a. 폴더가 있으나 컨텐츠가 없는 폴더에 대해 ContentsObjectEntity 생성
+
         List<ContentsObjectEntity> contentsToSave = new ArrayList<>();
+
+
 
         // folderEntityMap을 순회하면서 existingContentsMap에 없는 경우만 처리
         for (Map.Entry<Long, T> entry : folderEntityMap.entrySet()) {
@@ -164,6 +167,9 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
                 ContentsObjectEntity newContent = createNewContentsEntity(folder);
                 log.debug("새 콘텐츠 엔티티 생성: {}", folder.getName());
                 contentsToSave.add(newContent);
+
+
+
             } else {
                 log.debug("이미 콘텐츠가 존재하는 폴더: {}", folder.getName());
             }
@@ -171,12 +177,38 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
         log.info("저장할 새 콘텐츠 엔티티 수: {}", contentsToSave.size());
 
+
+        // 3-b. 콘텐츠가 있으나 폴더가 없는 경우  ContentsObjectEntity 삭제 처리
+
+        List<ContentsObjectEntity> contentsToDelete = new ArrayList<>();
+
+        for (Map.Entry<Long, ContentsObjectEntity> entry : existingContentsMap.entrySet()) {
+            Long folderId = entry.getKey();
+            ContentsObjectEntity entity = entry.getValue();
+
+            // existingContentsMap에 해당 폴더ID가 없는 경우에만 새 엔티티 생성
+            if (!folderEntityMap.containsKey(folderId)) {
+                log.debug("폴더 미존재. folderId '{}'에 해당하는 콘텐츠 엔티티 삭제: ({}){}", folderId,entity.getContentsId(),entity.getTitle());
+                contentsToDelete.add(entity);
+            } else {
+                log.debug("이미 폴더가 존재하는 콘텐츠: ({}){}", entity.getContentsId(),entity.getTitle());
+            }
+        }
+
+        log.info("삭제 할 콘텐츠 엔티티 수: {}", contentsToDelete.size());
+
         // 4. 저장
         if (!contentsToSave.isEmpty()) {
             contentsRepository.saveAll(contentsToSave)
                     .collectList()
                     .block();
             log.info("콘텐츠 엔티티 저장 완료");
+        }
+
+        if (!contentsToDelete.isEmpty()) {
+            contentsRepository.deleteAll(contentsToDelete)
+                    .block();
+            log.info("콘텐츠 엔티티 삭제 완료");
         }
 
         return RepeatStatus.FINISHED;

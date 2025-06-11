@@ -3,6 +3,7 @@ package com.tankmilu.batch.tasklet;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.entity.folder.FolderTreeEntity;
 import com.tankmilu.webflux.enums.VideoExtensionEnum;
 import lombok.AllArgsConstructor;
@@ -41,20 +42,33 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
                         .getExecutionContext()
                         .get("folderMap");
 
+        Set<Long> folderSet = new HashSet<>(); // 전체 폴더 ID 저장용 set
+
+
+
         // 디렉토리 처리 로직 구현
-        processDirectory(rootPath, folderMap);
+        processDirectory(rootPath, folderMap, folderSet);
+
+        // 삭제 할 폴더 검색
+        List<T> folderToDelete = getFolderIdsToDelete(folderMap,folderSet);
+
 
         // ExecutionContext에 저장
         chunkContext.getStepContext()
                 .getStepExecution()
                 .getJobExecution()
                 .getExecutionContext()
-                .put("folderMap", folderMap);
+                .put("folderMap", folderMap); // 기존 folderMap 저장
+        chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext()
+                .put("folderToDelete", folderToDelete); // folderSet 저장 추가
 
         return RepeatStatus.FINISHED;
     }
 
-    private void processDirectory(Path rootPath, Map<Long, T> map) {
+    private void processDirectory(Path rootPath, Map<Long, T> map, Set<Long> folderSet) {
         long nextKey = getNextKey(map);
         Queue<Path> queue = new LinkedList<>();
         queue.add(rootPath);
@@ -77,6 +91,7 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
 
 
                 Long folderId = readFolderIdFromJson(infoFile);
+                folderSet.add(folderId);
 
                 // 2. map에 folder_id 존재 시 데이터 비교
                 if (map.containsKey(folderId)) {
@@ -92,6 +107,7 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
             } else {
                 // 4. _folder_info.json 생성 및 새 엔티티 추가
                 Long newFolderId = nextKey++;
+                folderSet.add(newFolderId);
                 writeFolderInfo(currentDir, newFolderId);
 
                 T newEntity = createNewEntity(currentDir, rootPath, newFolderId);
@@ -275,4 +291,23 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
         E build(Long folderId, String name, String folderPath, Long parentFolderId,
                 String subscriptionCode, LocalDateTime createdAt, LocalDateTime modifiedAt, boolean hasFiles);
     }
+
+    // 삭제 할 폴더 검색 용 메소드
+    private List<T> getFolderIdsToDelete(Map<Long, T> folderMap, Set<Long> folderSet) {
+        List<T> folderToDelete = new ArrayList<>();
+
+        if (folderMap == null || folderSet == null) {
+            log.warn("folderMap 또는 folderSet 중 하나 이상이 null이므로, 삭제 대상 폴더를 식별할 수 없습니다.");
+            return folderToDelete; // 빈 리스트 반환
+        }
+
+        for (Map.Entry<Long, T> entry  : folderMap.entrySet()) {
+            // folderMap에 있는 folderId가 folderSet에 포함되어 있지 않다면, 삭제 대상으로 간주
+            if (!folderSet.contains(entry.getKey())) {
+                folderToDelete.add(entry.getValue());
+            }
+        }
+        return folderToDelete;
+    }
+
 }

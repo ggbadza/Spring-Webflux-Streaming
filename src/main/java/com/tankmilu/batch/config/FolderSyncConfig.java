@@ -25,6 +25,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.reactive.TransactionalOperator;
 
 import java.nio.file.Path;
 
@@ -35,6 +36,7 @@ public class FolderSyncConfig {
 
     private final JobRepository jobRepository;
     private final PlatformTransactionManager transactionManager;
+    private final TransactionalOperator transactionalOperator;
 
     // 레파지토리 주입
     private final AnimationFolderTreeRepository animationFolderTreeRepository;
@@ -159,9 +161,9 @@ public class FolderSyncConfig {
             @Value("#{jobParameters['type']}") String type) {
 
         return switch (type) {
-            case "anime" -> new FolderEntityUpdateTasklet<>(animationFolderTreeRepository);
-            case "movie" -> new FolderEntityUpdateTasklet<>(movieFolderTreeRepository);
-            case "drama" -> new FolderEntityUpdateTasklet<>(dramaFolderTreeRepository);
+            case "anime" -> new FolderEntityUpdateTasklet<>(animationFolderTreeRepository, transactionalOperator);
+            case "movie" -> new FolderEntityUpdateTasklet<>(movieFolderTreeRepository, transactionalOperator);
+            case "drama" -> new FolderEntityUpdateTasklet<>(dramaFolderTreeRepository, transactionalOperator);
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }
