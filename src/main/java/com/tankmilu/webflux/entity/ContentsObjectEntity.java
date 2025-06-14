@@ -2,6 +2,7 @@ package com.tankmilu.webflux.entity;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
@@ -46,6 +47,7 @@ public class ContentsObjectEntity implements Persistable<Long> {
     @Column("created_at")
     private LocalDateTime createdAt;
 
+    @Setter
     @Column("modified_at")
     private LocalDateTime modifiedAt;
 

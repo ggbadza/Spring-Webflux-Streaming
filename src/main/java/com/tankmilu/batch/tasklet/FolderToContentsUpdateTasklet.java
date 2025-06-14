@@ -14,6 +14,8 @@ import org.springframework.batch.core.StepContribution;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.transaction.reactive.TransactionalOperator;
+import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
     private final ContentsKeywordsRepository contentsKeywordsRepository;
     private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
     private final String contentType; // "anime", "movie", "drama" 등
+    private final TransactionalOperator transactionalOperator; // 배치 내부 DB 작업 관리용 트랜잭션 오퍼레이터
 
     @Override
     public RepeatStatus execute(StepContribution contribution,
@@ -143,13 +146,14 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
         Map<Long, ContentsObjectEntity> existingContentsMap = new HashMap<>();
         if (existingContents != null) {
             for (ContentsObjectEntity content : existingContents) {
-                if (content.getFolderId() != null) {
+                if (content.getFolderId() != null && content.getType().equals(contentType) ) {
                     existingContentsMap.put(content.getFolderId(), content);
                 }
             }
         }
 
         log.info("기존 콘텐츠 엔티티 수: {}", existingContentsMap.size());
+
 
         // 3-a. 폴더가 있으나 컨텐츠가 없는 폴더에 대해 ContentsObjectEntity 생성
 
@@ -197,19 +201,25 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
         log.info("삭제 할 콘텐츠 엔티티 수: {}", contentsToDelete.size());
 
-        // 4. 저장
+        // 4. DB 저장 작업
+
+        // 리액티브 체인 구성
+        Mono<Void> operations = Mono.empty();
+
         if (!contentsToSave.isEmpty()) {
-            contentsRepository.saveAll(contentsToSave)
-                    .collectList()
-                    .block();
-            log.info("콘텐츠 엔티티 저장 완료");
+            operations=operations.then(contentsRepository.saveAll(contentsToSave).then());
+            log.info("콘텐츠 엔티티 저장 작업 등록 완료");
         }
 
         if (!contentsToDelete.isEmpty()) {
-            contentsRepository.deleteAll(contentsToDelete)
-                    .block();
-            log.info("콘텐츠 엔티티 삭제 완료");
+            operations=operations.then(contentsRepository.deleteAll(contentsToDelete).then());
+            log.info("콘텐츠 엔티티 삭제 작업 등록 완료");
         }
+        operations
+                .as(transactionalOperator::transactional)
+                .doOnSuccess(v -> log.info("트랜잭션 처리 완료"))
+                .doOnError(e -> log.error("트랜잭션 처리 중 오류: ", e))
+                .block();
 
         return RepeatStatus.FINISHED;
     }

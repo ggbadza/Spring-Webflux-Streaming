@@ -61,6 +61,7 @@ public class ContentsUpdateConfig {
                 .build();
     }
 
+    // Step 1 : 폴더 -> 컨텐츠 업데이트 작업
     @Bean
     @JobScope
     public Step folderToContentsStep(
@@ -76,11 +77,11 @@ public class ContentsUpdateConfig {
             @Value("#{jobParameters['type']}") String type) {
         return switch (type) {
             case "anime" -> new FolderToContentsUpdateTasklet<>(
-                    animationFolderTreeRepository, contentsObjectRepository, contentsKeywordsRepository,contentsObjectDocumentRepository,"anime");
+                    animationFolderTreeRepository, contentsObjectRepository, contentsKeywordsRepository,contentsObjectDocumentRepository,"anime", transactionalOperator);
             case "movie" -> new FolderToContentsUpdateTasklet<>(
-                    movieFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"movie");
+                    movieFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"movie", transactionalOperator);
             case "drama" -> new FolderToContentsUpdateTasklet<>(
-                    dramaFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"drama");
+                    dramaFolderTreeRepository, contentsObjectRepository,contentsKeywordsRepository,contentsObjectDocumentRepository,"drama", transactionalOperator);
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }
@@ -95,6 +96,7 @@ public class ContentsUpdateConfig {
                 .build();
     }
 
+    // Step 1: 컨텐츠의 파일 업데이트 작업
     @Bean
     @JobScope
     public Step contentsToFileUpdateStep(
@@ -106,7 +108,7 @@ public class ContentsUpdateConfig {
     }
 
 
-    // DB 저장 단계
+    // Step 2: DB 저장 단계
     @Bean
     @JobScope
     public Step contentsFileSaveStep() {
@@ -124,7 +126,7 @@ public class ContentsUpdateConfig {
             case "anime" -> new ContentsToFileUpdateTasklet<>(animationFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
             case "movie" -> new ContentsToFileUpdateTasklet<>(movieFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
             case "drama" -> new ContentsToFileUpdateTasklet<>(dramaFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
-            default -> new ContentsToFileUpdateTasklet<>(null, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
+            default -> throw new IllegalArgumentException("컨텐츠 타입 에러: " + type + " 타입이 다음 타입과 같은지 확인해주세요. 'anime', 'movie', 'drama'.");
         };
     }
 
@@ -132,6 +134,6 @@ public class ContentsUpdateConfig {
     @Bean
     @StepScope
     public ContentsFileSaveTasklet contentsFileSaveTasklet() {
-        return new ContentsFileSaveTasklet(contentsFileRepository, transactionalOperator);
+        return new ContentsFileSaveTasklet(contentsFileRepository, contentsObjectRepository, transactionalOperator);
     }
 }

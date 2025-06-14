@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -47,6 +48,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
     private final List<ContentsFileEntity> filesToInsert = new ArrayList<>();
     private final List<ContentsFileEntity> filesToUpdate = new ArrayList<>();
     private final List<ContentsFileEntity> filesToDelete = new ArrayList<>();
+    private final List<ContentsObjectEntity> contentsToUpdate = new ArrayList<>();
 
 
     @Value("${custom.batch.subtitle_folder}")
@@ -58,7 +60,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
         // 1. 콘텐츠오브젝트 불러오기
         List<ContentsObjectEntity> contentsList;
-        if (type==null || folderId==null) {
+        if (folderId==null || folderId==0) {
             // 1-1. 모든 ContentsObjectEntity 로드
             contentsList = contentsRepository.findAll()
                     .collectList()
@@ -77,7 +79,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
         log.info("로드된 콘텐츠 객체 수: {}", contentsList.size());
 
-        // 2. 모든 콘텐츠파일 로드 (콘텐츠 ID로 그룹화)
+        // 2-a. 모든 콘텐츠파일 로드 (콘텐츠 ID로 그룹화)
         List<ContentsFileEntity> allFiles = fileRepository.findAll()
                 .collectList()
                 .block();
@@ -94,6 +96,18 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
         log.info("기존 파일 엔티티 수: {}", allFiles != null ? allFiles.size() : 0);
 
+        // 2-b. 실제 타입에 대한 폴더 객체 전체 로드
+        List<T> folderList = folderRepository.findAll().collectList().block();
+
+        // 폴더리스트를 HashMap으로 변환
+        Map<Long, String> folderPathMap = Objects.requireNonNull(folderList, "폴더 목록은 null일 수 없습니다.")
+                .stream()
+                .collect(Collectors.toMap(
+                        T::getFolderId,
+                        T::getFolderPath,
+                        (oldValue, newValue) -> oldValue // 중복 키 처리: 기존 값 유지
+                ));
+
 
         // 3. 각 콘텐츠오브젝트에 대해 파일 검색 및 콘텐츠파일엔티티 업데이트
         /*
@@ -105,9 +119,10 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
             existingFiles에는 없지만 새로 검사한 파일이 있다면 인설트 하고(자막 경로와 같이)
             existingFiles에 있고, 새로 검사한 파일 목록에도 있지만 자막 여부가 달라졌다면 업데이트
          */
+
         for (ContentsObjectEntity content : contentsList) {
             // 3-1. 폴더 경로 찾기
-            String folderPath = getFolderPath(content);
+            String folderPath = folderPathMap.get(content.getFolderId());
             if (folderPath == null || folderPath.isEmpty()) {
                 log.warn("콘텐츠 ID: {}에 대한 폴더 경로를 찾을 수 없습니다.", content.getContentsId());
                 continue;
@@ -243,7 +258,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                     }
                 }
             }
-
+            boolean isContentsUpdated = false;
             // 4-3. filteredFiles 를 이용해서
             // existingFilePaths세트를 조회해서 파일이 추가 된 경우
             // 파일 엔티티 생성 후 인서트
@@ -261,6 +276,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                             .filePath(fileDTO[0])
                             .subtitlePath(fileDTO[1])
                             .build();
+                    isContentsUpdated = true;
 
                     // 자막 존재 시 자막 생성일자 세팅
                     if (fileDTO[1]!=null){
@@ -268,6 +284,10 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                     }
                     filesToInsert.add(newFile);
                 }
+            }
+            if (isContentsUpdated){
+                content.setModifiedAt(LocalDateTime.now());
+                contentsToUpdate.add(content);
             }
         }
         
@@ -292,6 +312,12 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 .getJobExecution()
                 .getExecutionContext()
                 .put("filesToDelete", filesToDelete);
+
+        chunkContext.getStepContext()
+                .getStepExecution()
+                .getJobExecution()
+                .getExecutionContext()
+                .put("contentsToUpdate", contentsToUpdate);
                 
         // 실제 저장은 별도의 Tasklet에서 처리하도록 변경
         return RepeatStatus.FINISHED;
