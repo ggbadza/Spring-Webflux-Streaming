@@ -1,6 +1,7 @@
 package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
+import com.tankmilu.webflux.entity.UserContentsFollowingEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.es.document.ContentsObjectDocument;
 import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
@@ -8,6 +9,7 @@ import com.tankmilu.webflux.exception.ContentsNotFoundException;
 import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
+import com.tankmilu.webflux.repository.UserContentsFollowingRepository;
 import com.tankmilu.webflux.repository.UserContentsRecommendRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,12 +28,10 @@ import java.util.stream.Collectors;
 public class ContentsService {
 
     private final ContentsObjectRepository contentsObjectRepository;
-
     private final ContentsFileRepository contentsFileRepository;
-
     private final UserContentsRecommendRepository userContentsRecommendRepository;
-
     private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
+    private final UserContentsFollowingRepository userContentsFollowingRepository;
 
     public Mono<ContentsResponse> getContentsInfo(Long contentsId) {
         return contentsObjectRepository.findById(contentsId)
@@ -199,5 +199,32 @@ public class ContentsService {
                 .doOnError(e -> log.error("쿼리 '{}' 검색 실패: {}", query, e.getMessage(), e));
     }
 
+    public Mono<Boolean> registerFollowing(String userId, Long contentsId){
+        return userContentsFollowingRepository.findMaxFollowingSeqByUserId(userId)
+                .defaultIfEmpty(0) // 현재 user_id에 팔로우 데이터가 없으면 0부터 시작 (nextSeq는 1이 됨)
+                .flatMap(maxSeq -> {
+                    Integer nextSeq = maxSeq + 1; // 다음 following_seq 계산
+
+                    UserContentsFollowingEntity newFollowing = UserContentsFollowingEntity.builder()
+                            .userId(userId)
+                            .contentsId(contentsId)
+                            .followingSeq(nextSeq) // 계산된 following_seq 설정
+                            .createdAt(java.time.LocalDateTime.now()) // 현재 시간으로 생성 시간 설정
+                            .build();
+
+                    // 엔티티를 저장하고, 성공하면 true를 반환
+                    return userContentsFollowingRepository.save(newFollowing)
+                            .thenReturn(true)
+                            .onErrorResume(e -> {
+                                System.err.println("즐겨찾기 데이터를 저장하는데 오류 발생 userId: " + userId + ", contentsId: " + contentsId + ". Error: " + e.getMessage());
+                                return Mono.just(false); // 실패 시 false Mono 방출
+                            });
+                });
+    }
+
+    public Flux<ContentsResponse> getFollowingContents(String userId) {
+        return userContentsFollowingRepository.findByUserIdOrderByFollowingSeq(userId) // 1. following_seq 순서로 Flux<UserContentsFollowingEntity>를 가져옴
+                .flatMapSequential(userFollowing -> getContentsInfo(userFollowing.getContentsId()));
+    }
 
 }

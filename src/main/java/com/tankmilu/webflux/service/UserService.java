@@ -217,4 +217,15 @@ public class UserService {
                 .switchIfEmpty(Mono.just(new UserRegResponse(null, null, null, "유저 세션이 존재하지 않습니다.")));
     }
 
+    public Mono<Void> revokeToken(String refreshToken) {
+        // RefreshToken 검사
+        if (!jwtValidator.validateToken(refreshToken)) {
+            return Mono.error(new RuntimeException("RefreshToken 이 유효하지 않습니다."));
+        }
+        // 토큰에서 사용자 정보 추출
+        String sessionCode = jwtValidator.extractSessionCode(refreshToken);
+
+        return jwtRefreshTokenRepository.deleteById(sessionCode);
+    }
+
 }

@@ -100,4 +100,31 @@ public class ContentsController {
         return contentsService.searchContentsByQuery(contentsSearchRequest.query());
     }
 
+    /**
+     * 특정 컨텐츠를 즐겨찾기 목록에 추가합니다.
+     *
+     * @param userDetails 유저 계정 정보
+     * @param contentsId 등록 할 컨텐츠 ID
+     * @return
+     */
+    @PostMapping("${app.contents.urls.register_following}") // 새로운 URL 경로
+    public Mono<Boolean> registerFollowing(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long contentsId) {
+        return contentsService.registerFollowing(userDetails.getUsername(),contentsId);
+    }
+
+    /**
+     * 즐겨찾기한 컨텐츠를 가져옵니다.
+     *
+     * @param userDetails 유저 계정 정보
+     * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
+     */
+    @GetMapping("${app.contents.urls.get_following}")
+    public Flux<ContentsResponse> getFollowing(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return contentsService.getFollowingContents(userDetails.getUsername());
+    }
+
+
 }

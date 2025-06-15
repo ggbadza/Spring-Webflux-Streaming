@@ -35,7 +35,7 @@ public class UserController {
      * @param loginRequest 로그인 요청 정보 (userId, password)
      * @return 로그인 성공 여부와 JWT 토큰이 포함된 쿠키 반환
      */
-    @PostMapping("/login")
+    @PostMapping("${app.user.urls.login}")
     public Mono<ResponseEntity<Boolean>> login(@RequestBody LoginRequestRecord loginRequest) {
         return authenticationManager.authenticate(
                         new UsernamePasswordAuthenticationToken(
@@ -49,13 +49,14 @@ public class UserController {
                 );
     }
 
+
     /**
      * 액세스 토큰을 재발급함
      * 
      * @param exchange 서버 웹 교환 객체 (쿠키 정보 포함)
      * @return 토큰 재발급 성공 여부와 새로운 JWT 토큰이 포함된 쿠키 반환
      */
-    @RequestMapping(value = "/reissue", method = {RequestMethod.GET, RequestMethod.POST})
+    @RequestMapping(value = "${app.user.urls.reissue}", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<ResponseEntity<Boolean>> reissue(ServerWebExchange exchange) {
         // 리프레시토큰 추출
         HttpCookie cookie = exchange.getRequest().getCookies().getFirst("refreshToken");
@@ -104,7 +105,7 @@ public class UserController {
      * @param registerRequest 사용자 등록 요청 정보
      * @return 등록 결과 정보 반환
      */
-    @PostMapping("/register")
+    @PostMapping("${app.user.urls.register}")
     public Mono<UserRegResponse> register(@RequestBody UserRegRequest registerRequest) {
         return userService.register(registerRequest);
     }
@@ -116,9 +117,31 @@ public class UserController {
      * @param userDetails 인증된 사용자 상세 정보
      * @return 사용자 프로필 정보 반환
      */
-    @RequestMapping(value = "/me", method = {RequestMethod.GET, RequestMethod.POST})
+    @RequestMapping(value = "${app.user.urls.me}", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<UserRegResponse> aboutMe(@AuthenticationPrincipal CustomUserDetails userDetails) {
         return userService.aboutMe(userDetails);
+    }
+
+    /**
+     * 현재 인증된 사용자의 정보를 초기화
+     *
+     * @param exchange 인증된 사용자 토큰 정보
+     * @return
+     */
+    @GetMapping(value = "${app.user.urls.logout}")
+    public Mono<ResponseEntity<Boolean>> logout(ServerWebExchange exchange) {
+        HttpCookie cookie = exchange.getRequest().getCookies().getFirst("refreshToken");
+        if (cookie == null) {
+            return Mono.just(ResponseEntity.status(HttpStatus.OK).body(true));
+        }
+        String refreshToken = cookie.getValue();
+        return userService.revokeToken(refreshToken)
+                .thenReturn(ResponseEntity.status(HttpStatus.OK).body(true)) // Mono<Void>가 완료되면 ResponseEntity<Boolean>을 방출
+                .onErrorResume(e -> {
+                    System.err.println("토큰 폐기중에 에러 발생 : " + e.getMessage());
+                    return Mono.just(ResponseEntity.status(HttpStatus.OK).body(true)); // 에러가 나도 클라이언트에겐 성공처럼 보낼 경우
+                    // return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(false)); // 에러 응답을 보내고 싶을 경우
+                });
     }
 
 
