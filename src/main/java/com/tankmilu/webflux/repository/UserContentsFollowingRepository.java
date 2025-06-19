@@ -9,8 +9,12 @@ import reactor.core.publisher.Mono;
 
 public interface UserContentsFollowingRepository extends R2dbcRepository<UserContentsFollowingEntity, String> {
 
-    @Query("SELECT MAX(ucf.followingSeq) FROM user_contents_following ucf WHERE ucf.userId = :userId")
+    @Query("SELECT MAX(ucf.following_seq) FROM user_contents_following ucf WHERE ucf.user_Id = :userId")
     Mono<Integer> findMaxFollowingSeqByUserId(@Param("userId") String userId);
 
     Flux<UserContentsFollowingEntity> findByUserIdOrderByFollowingSeq(String userId);
+
+    Mono<Void> deleteByUserIdAndContentsId(String userId, Long contentsId);
+
+    Mono<Boolean> existsByUserIdAndContentsId(String userId, Long contentsId);
 }

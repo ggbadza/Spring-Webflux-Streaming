@@ -236,7 +236,7 @@ public class VideoService {
                                         log.info("M3U8 캐싱 파일 존재 : {}", tempFile);
                                         return Mono.fromCallable(() -> Files.readString(tempFile))
                                                 .subscribeOn(Schedulers.boundedElastic());
-                                    } else if(!type.equals("0")) { // 트랜스코딩 형식
+                                    } else { // 트랜스코딩 형식
                                         // 캐싱 파일 미 존재 시 새로 생성 (트랜스코딩 형식)
                                         return Mono.fromCallable(() -> {
                                                     log.info("M3U8 캐싱 파일 미존재. 신규 생성 시도 : {}", tempFile);
@@ -253,20 +253,24 @@ public class VideoService {
                                                             .append("#EXT-X-MEDIA-SEQUENCE:0\n");
 
                                                     final int SEGMENT_LENGTH = 10;
-                                                    double prevFrame=0.0;
-                                                    double nowFrame;
+
+                                                    BigDecimal prevFrame = new BigDecimal("0.0");
+                                                    BigDecimal nowFrame;
+                                                    BigDecimal segmentLengthBD = new BigDecimal(SEGMENT_LENGTH);
 
                                                     // 각 키 프레임을 순차적으로 비교
                                                     for (List<String> keyFrames : keyFrameStrings){
                                                         // 키 프레임이 이전 프레임+10을 넘어가면 입력.
-                                                        nowFrame = Double.parseDouble(keyFrames.get(1));
-                                                        if (nowFrame>=prevFrame+SEGMENT_LENGTH){
+                                                        nowFrame = new BigDecimal(keyFrames.get(1));
+                                                        if (nowFrame.compareTo(prevFrame.add(segmentLengthBD)) >= 0){
+                                                            BigDecimal duration = nowFrame.subtract(prevFrame);
+
                                                             m3u8Builder.append("#EXTINF:")
-                                                                .append(nowFrame - prevFrame).append(",\n")
+                                                                .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
                                                                 .append(videoBaseUrl).append(hlstsUrl)
                                                                 .append("?fileId=").append(fileId)
-                                                                .append("&ss=").append(prevFrame)
-                                                                .append("&to=").append(nowFrame)
+                                                                .append("&ss=").append(prevFrame.toPlainString())
+                                                                .append("&to=").append(nowFrame.add(new BigDecimal("0.01")).toPlainString())
                                                                 .append("&type=").append(type)
                                                                 .append('\n');
                                                             prevFrame = nowFrame;
@@ -285,60 +289,6 @@ public class VideoService {
                                                         log.error("Error M3U8 파일 생성 실패 {}: {}", tempFile, e.getMessage());
                                                     }
                                                 });
-                                    } else { // 원본 파일 사용
-                                        // 캐싱 파일 미 존재 시 새로 생성 (원본 파일 형식)
-                                        return Mono.fromCallable(() -> {
-                                                    log.info("M3U8 캐싱 파일 미존재. 신규 생성 시도 : {}", tempFile);
-                                                    String videoPath   = entity.getFullFilePath();
-
-                                                    List<List<String>> keyFrameStrings = ffmpegService.getVideoKeyFrame(videoPath);
-//                                                    double videoDuration = ffmpegService.getVideoDuration(videoPath);
-
-                                                    StringBuilder m3u8Builder = new StringBuilder()
-                                                            .append("#EXTM3U\n")
-                                                            .append("#EXT-X-VERSION:7\n")
-                                                            .append("#EXT-X-TARGETDURATION:10\n")
-                                                            .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
-                                                            .append("#EXT-X-MEDIA-SEQUENCE:0\n");
-
-                                                    final int SEGMENT_LENGTH = 10;
-                                                    double prevFrame=0.0;
-                                                    double nowFrame;
-
-                                                    long prevBytes=0;
-                                                    long nowBytes;
-
-                                                    // 각 키 프레임을 순차적으로 비교
-                                                    for (List<String> keyFrames : keyFrameStrings){
-                                                        // 키 프레임이 이전 프레임+10을 넘어가면 입력.
-                                                        nowFrame = Double.parseDouble(keyFrames.get(1));
-                                                        nowBytes = Long.parseLong(keyFrames.get(2));
-                                                        if (nowFrame>=prevFrame+SEGMENT_LENGTH){
-                                                            m3u8Builder.append("#EXTINF:")
-                                                                    .append(nowFrame - prevFrame).append(",\n")
-                                                                    .append(videoBaseUrl).append(filerangeUrl)
-                                                                    .append("?fileId=").append(fileId)
-                                                                    .append("&start_bytes=").append(prevBytes)
-                                                                    .append("&end_bytes=").append(nowBytes)
-                                                                    .append('\n');
-                                                            prevFrame = nowFrame;
-                                                            prevBytes = nowBytes;
-                                                        }
-                                                    }
-                                                    m3u8Builder.append("\n").append("#EXT-X-ENDLIST");
-                                                    return m3u8Builder.toString();
-                                                })
-                                                .subscribeOn(Schedulers.boundedElastic())
-                                                .doOnNext(m3u8 -> {
-                                                    try {
-                                                        Files.createDirectories(tempFile.getParent());
-                                                        Files.writeString(tempFile, m3u8, StandardOpenOption.CREATE,
-                                                                StandardOpenOption.TRUNCATE_EXISTING);
-                                                    } catch (IOException e) {
-                                                        log.error("Error M3U8 파일 생성 실패 {}: {}", tempFile, e.getMessage());
-                                                    }
-                                                });
-
                                     }
                                 })
                 );

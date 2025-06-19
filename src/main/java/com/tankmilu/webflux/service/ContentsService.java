@@ -214,17 +214,27 @@ public class ContentsService {
 
                     // 엔티티를 저장하고, 성공하면 true를 반환
                     return userContentsFollowingRepository.save(newFollowing)
-                            .thenReturn(true)
-                            .onErrorResume(e -> {
-                                System.err.println("즐겨찾기 데이터를 저장하는데 오류 발생 userId: " + userId + ", contentsId: " + contentsId + ". Error: " + e.getMessage());
-                                return Mono.just(false); // 실패 시 false Mono 방출
-                            });
+                            .thenReturn(true);
                 });
     }
+
+    public Mono<Boolean> deleteFollowing(String userId, Long contentsId){
+        return userContentsFollowingRepository.deleteByUserIdAndContentsId(userId, contentsId)
+                .thenReturn(true)
+                .onErrorResume(e -> {
+                    System.err.println("즐겨찾기 데이터를 삭제하는데 오류 발생 userId: " + userId + ", contentsId: " + contentsId + ". Error: " + e.getMessage());
+                    return Mono.just(false); // 실패 시 false Mono 방출
+                });
+    }
+
 
     public Flux<ContentsResponse> getFollowingContents(String userId) {
         return userContentsFollowingRepository.findByUserIdOrderByFollowingSeq(userId) // 1. following_seq 순서로 Flux<UserContentsFollowingEntity>를 가져옴
                 .flatMapSequential(userFollowing -> getContentsInfo(userFollowing.getContentsId()));
+    }
+
+    public Mono<Boolean> isFollowingContent(String userId, Long contentsId){
+        return userContentsFollowingRepository.existsByUserIdAndContentsId(userId, contentsId);
     }
 
 }

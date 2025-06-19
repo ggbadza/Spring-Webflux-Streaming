@@ -286,6 +286,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 }
             }
             if (isContentsUpdated){
+                content.setNewRecord(false);
                 content.setModifiedAt(LocalDateTime.now());
                 contentsToUpdate.add(content);
             }

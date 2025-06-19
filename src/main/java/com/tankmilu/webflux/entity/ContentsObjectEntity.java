@@ -58,6 +58,7 @@ public class ContentsObjectEntity implements Persistable<Long>, Serializable {
     @Column("series_id")
     private String seriesId;
 
+    @Setter
     @Transient
     private boolean isNewRecord;
 

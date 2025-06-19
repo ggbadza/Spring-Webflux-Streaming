@@ -21,14 +21,17 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,10 +40,19 @@ import java.util.stream.Collectors;
 public class FFmpegServiceProcessImpl implements FFmpegService {
 
     @Value("${custom.ffmpeg.ffmpeg}")
-    public String ffmpegDir;
+    private String ffmpegDir;
 
     @Value("${custom.ffmpeg.ffprobe}")
-    public String ffprobeDir;
+    private String ffprobeDir;
+
+    @Value("${custom.batch.temp_folder}")
+    private String tempFolder;
+
+    @Value("${custom.ffmpeg.video_codec}")
+    private String videoCodec;
+
+    @Value("${custom.ffmpeg.audio_codec}")
+    private String audioCodec;
 
     private final DataBufferFactory dataBufferFactory;
 
@@ -198,73 +210,67 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
     public Flux<DataBuffer> getTsData(String videoPath, String start, String to, String type) {
         return Flux.defer(() -> {
-                    List<String> command = new ArrayList<>(Arrays.asList(
-                            ffmpegDir,
-                            "-ss", start,
-                            "-i", videoPath,
-                            "-c:v", "libx264",
-                            "-preset", "fast",
-                            "-to", to,
-                            "-c:a", "aac",
-                            "-f", "mpegts",
-                            "-muxdelay", "0.1",
-                            "-copyts",
-                            "pipe:1"
-                    ));
 
-                    VideoResolutionEnum resolution = VideoResolutionEnum.fromType(type)
-                            .orElse(null);
+            final Path intermediateFile1 = generateTempFilePath("1","mkv"); // 1단계 결과물
+            final Path intermediateFile2 = generateTempFilePath("2","ts"); // 2단계 임시 파일
 
-                    // 해상도 옵션 동적으로 추가
-                    if (resolution != null) {
-                        int insertPos = command.indexOf("-c:v") + 2;
+            BigDecimal firstStart = new BigDecimal(start);
+            firstStart = firstStart.add(new BigDecimal("-3"));
 
-                        switch (resolution) {
-                            case RES_480P -> {
-                                command.add(insertPos,"-vf");
-                                command.add(insertPos + 1, "scale=-2:480");
-                            } case RES_720P -> {
-                                command.add(insertPos,"-vf");
-                                command.add(insertPos + 1, "scale=-2:720");
-                            } case RES_1080P -> {
-                                command.add(insertPos,"-vf");
-                                command.add(insertPos + 1, "scale=-2:1080");
-                            } case RES_1440P -> {
-                                command.add(insertPos,"-vf");
-                                command.add(insertPos + 1, "scale=-2:1440");
-                            }
+//            BigDecimal firstTo = new BigDecimal(to);;
+//            firstTo = firstTo.add(new BigDecimal("1"));
+            // 1단계 FFmpeg 명령어 정의
+            List<String> firstCommand = new ArrayList<>(Arrays.asList(
+                    ffmpegDir, "-y",
+                    "-ss", firstStart.toString(),
+                    "-i", videoPath,
+                    "-to", to,
+                    "-copyts",
+                    "-c:v", "copy",
+                    "-c:a", audioCodec, // 오디오 코덱은 처음에 인코딩
+                    intermediateFile1.toString()
+            ));
+
+            // 2단계 FFmpeg 명령어 정의
+            // intermediateFile1을 입력으로 받아 정밀하게 트랜스코딩 후 intermediateFile2를 생성합니다.
+            List<String> secondCommand = new ArrayList<>(Arrays.asList(
+                    ffmpegDir, "-y",
+                    "-i", intermediateFile1.toString(),
+                    "-ss", start,
+                    "-to", to,
+//                    "-vf", "setpts=PTS-STARTPTS+"+start+"/TB",
+//                    "-af", "setpts=PTS-STARTPTS+"+start+"/TB",
+//                    "-vf", "trim=start=" + start + ":end=" + to, // 정밀하게 자르기 위한 비디오 필터
+                    "-output_ts_offset", start,
+                    "-copyts",
+                    "-c:v", videoCodec, // 비디오 코덱은 두번째 인코딩
+                    "-c:a", "copy", // 오디오 코덱 샘플링 문제로 인코딩 시 밀림 현상 발생하므로 두번째에 copy
+//                    "-preset", "fast",
+                    "-f", "mpegts",
+                    intermediateFile2.toString()
+            ));
+            // 해상도 옵션 동적으로 추가
+            addResolutionOptions(secondCommand, type);
+
+
+            // 3. 리액티브 체인을 구성
+            return runCommandAsync(firstCommand)  // 1단계 실행
+                    .then(runCommandAsync(secondCommand)) // 1단계 완료 후 2단계 실행
+                    .thenMany(DataBufferUtils.read( // 2단계 완료 후, 최종 생성된 파일을 읽어 Flux로 변환
+                            intermediateFile2,
+                            this.dataBufferFactory,
+                            262144
+                    ))
+                    .doFinally(signalType -> { // 모든 작업 완료/실패 후 임시 파일 2개 모두 삭제
+                        try {
+                            Files.deleteIfExists(intermediateFile1);
+                            Files.deleteIfExists(intermediateFile2);
+                            log.info("임시 파일 삭제 완료: {}, {}", intermediateFile1.getFileName(), intermediateFile2.getFileName());
+                        } catch (IOException e) {
+                            log.error("임시 파일 삭제 실패", e);
                         }
-                    }
-
-                    ProcessBuilder pb = new ProcessBuilder(command);
-                    Process process;
-                    try {
-                        process = pb.start();
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-
-                    // stderr 로그를 별도 스레드에서 버려서 FFmpeg가 블록되지 않도록 구현
-                    Schedulers.boundedElastic().schedule(() -> {
-                        try (InputStream err = process.getErrorStream()) {
-                            byte[] buf = new byte[1024]; // 버퍼 크기
-                            while (err.read(buf) != -1) { /* 버퍼 비움 */ }
-                        } catch (IOException ignored) { }
                     });
-
-                    // stdout은 DataBufferUtils 로 읽어서 Flux<DataBuffer>로 변환
-                    Flux<DataBuffer> videoFlux = DataBufferUtils.readInputStream(
-                            process::getInputStream,
-                            dataBufferFactory,
-                            4096
-                    );
-
-                    return videoFlux
-                            .doFinally(sig -> {
-                                if (process.isAlive()) process.destroyForcibly();
-                            });
-                })
-                .subscribeOn(Schedulers.boundedElastic());
+        });
     }
 
     public InputStreamResource getFmp4Data(String videoPath, String start, String to, String type) throws IOException {
@@ -447,6 +453,80 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                 })
                 .then(Mono.just(true))  // 성공시 true 반환
                 .onErrorReturn(false);  // 실패시 false 반환
+    }
+
+    /**
+     * FFmpeg 명령어를 비동기적으로 실행하고, 프로세스가 종료되면 완료 신호를 보내는 Mono를 반환
+     * @param command 실행할 명령어 리스트
+     * @return 프로세스 완료 시 onComplete 신호를 보내는 Mono<Void>
+     */
+    private Mono<Void> runCommandAsync(List<String> command) {
+        return Mono.fromCallable(() -> {
+                    ProcessBuilder pb = new ProcessBuilder(command);
+                    Process process = pb.start();
+
+                    drainStreamAsync(process.getErrorStream());
+
+                    // onExit()를 사용해 프로세스 종료를 나타내는 CompletableFuture
+                    return process.onExit();
+                })
+                .flatMap(Mono::fromFuture) //
+                .flatMap(process -> {
+                    if (process.exitValue() == 0) {
+                        // 성공 시, 비어있는 Mono를 반환하여 onComplete 신호 발생
+                        return Mono.<Void>empty();
+                    } else {
+                        // 실패 시, 에러 신호 발생
+                        return Mono.error(new IOException("FFmpeg 프로세스가 비정상 종료되었습니다. 종료 코드: " + process.exitValue()));
+                    }
+                })
+                .subscribeOn(Schedulers.boundedElastic());
+    }
+
+    // 에러 스트림 폐기
+    private void drainStreamAsync(InputStream inputStream) {
+        Schedulers.boundedElastic().schedule(() -> {
+            try (InputStream is = inputStream) {
+                byte[] buffer = new byte[1024];
+                while (is.read(buffer) != -1) {
+                    // 스트림 비워주는 용도
+                }
+            } catch (IOException e) {
+                // 스트림을 읽는 중 에러 발생 시 로그 기록
+            }
+        });
+    }
+
+    // 해시 파일 경로
+    private Path generateTempFilePath(String var,String ext){
+        Path tempFolderPath = Paths.get(tempFolder);
+
+        String uniqueID = UUID.randomUUID().toString();
+        String fileName = String.format("ffmpeg-%s-%s.%s", uniqueID, var, ext);
+
+        return tempFolderPath.resolve(fileName);
+    }
+
+    // FFmpeg command에 해상도 옵션 더하는 메소드
+    private void addResolutionOptions(List<String> command, String type) {
+        // VideoResolutionEnum은 기존 코드에 있던 Enum이라고 가정합니다.
+        // VideoResolutionEnum resolution = VideoResolutionEnum.fromType(type).orElse(null);
+        // if (resolution == null) return;
+
+        String scaleValue = null;
+        // 실제 구현에서는 Enum을 사용하는 것이 좋습니다.
+        switch (type) {
+            case "480p": scaleValue = "scale=-2:480"; break;
+            case "720p": scaleValue = "scale=-2:720"; break;
+            case "1080p": scaleValue = "scale=-2:1080"; break;
+            case "1440p": scaleValue = "scale=-2:1440"; break;
+        }
+
+        if (scaleValue != null) {
+            int insertPos = command.indexOf("-c:v") + 2;
+            command.add(insertPos, "-vf");
+            command.add(insertPos + 1, scaleValue);
+        }
     }
 
 }

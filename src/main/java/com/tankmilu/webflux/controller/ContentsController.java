@@ -95,7 +95,7 @@ public class ContentsController {
      * @param contentsSearchRequest 검색어
      * @return 검색 결과로 ContentsObjectDocument 리스트를 반환하는 Flux
      */
-    @PostMapping("${app.contents.urls.search}") // 새로운 URL 경로
+    @PostMapping("${app.contents.urls.search}")
     public Flux<ContentsSearchResponse> searchContentsByKeyword(@RequestBody ContentsSearchRequest contentsSearchRequest) {
         return contentsService.searchContentsByQuery(contentsSearchRequest.query());
     }
@@ -105,13 +105,27 @@ public class ContentsController {
      *
      * @param userDetails 유저 계정 정보
      * @param contentsId 등록 할 컨텐츠 ID
-     * @return
+     * @return Boolean
      */
-    @PostMapping("${app.contents.urls.register_following}") // 새로운 URL 경로
+    @RequestMapping(value = "${app.contents.urls.register_following}", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<Boolean> registerFollowing(
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam Long contentsId) {
         return contentsService.registerFollowing(userDetails.getUsername(),contentsId);
+    }
+
+    /**
+     * 특정 컨텐츠를 즐겨찾기 목록에서 제거합니다.
+     *
+     * @param userDetails 유저 계정 정보
+     * @param contentsId 삭제 할 컨텐츠 ID
+     * @return Boolean
+     */
+    @RequestMapping(value = "${app.contents.urls.delete_following}", method = {RequestMethod.GET, RequestMethod.POST})
+    public Mono<Boolean> deleteFollowing(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long contentsId) {
+        return contentsService.deleteFollowing(userDetails.getUsername(),contentsId);
     }
 
     /**
@@ -121,9 +135,22 @@ public class ContentsController {
      * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
      */
     @GetMapping("${app.contents.urls.get_following}")
-    public Flux<ContentsResponse> getFollowing(
+    public Flux<ContentsResponse> getFollowingContents(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return contentsService.getFollowingContents(userDetails.getUsername());
+    }
+
+    /**
+     * 즐겨찾기한 컨텐츠를 가져옵니다.
+     *
+     * @param userDetails 유저 계정 정보
+     * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
+     */
+    @RequestMapping(value = "${app.contents.urls.is_following}", method = {RequestMethod.GET, RequestMethod.POST})
+    public Mono<Boolean> isFollowingByContentsId(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long contentsId) {
+        return contentsService.isFollowingContent(userDetails.getUsername(), contentsId);
     }
 
 
