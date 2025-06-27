@@ -3,16 +3,16 @@ package com.tankmilu.webflux.service;
 import com.tankmilu.webflux.entity.ContentsFileEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.enums.VideoResolutionEnum;
-import com.tankmilu.webflux.record.PlayListRecord;
-import com.tankmilu.webflux.record.SubtitleInfo;
-import com.tankmilu.webflux.record.SubtitleMetadataResponse;
-import com.tankmilu.webflux.record.VideoMonoRecord;
+import com.tankmilu.webflux.exception.RangeNotSatisfiableException;
+import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.repository.ContentsFileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -186,6 +186,90 @@ public class VideoService {
                 });
     }
 
+    public Mono<VideoMetaRecord> getVideoMeta(Long fileId, String rangeHeader) {
+        return contentsFileRepository.findFileWithContentInfo(fileId)
+                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "콘텐츠 파일 정보를 찾을 수 없습니다. ID: " + fileId)))
+                .flatMap(fileInfo -> {
+                    Path videoPath = Paths.get(fileInfo.getFullFilePath());
+
+                    if (!Files.exists(videoPath) || !Files.isReadable(videoPath)) {
+                        log.error("비디오 파일이 존재하지 않거나 읽을 수 없습니다: {}", videoPath);
+                        return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "비디오 파일을 찾을 수 없거나 접근할 수 없습니다."));
+                    }
+
+                    Mono<Long> fileLengthMono = Mono.fromCallable(() -> Files.size(videoPath))
+                            .subscribeOn(Schedulers.boundedElastic());
+
+                    Mono<String> contentTypeMono = Mono.fromCallable(() ->
+                                    Optional.ofNullable(Files.probeContentType(videoPath)).orElse("video/mp4"))
+                            .subscribeOn(Schedulers.boundedElastic());
+
+                    return Mono.zip(fileLengthMono, contentTypeMono)
+                            .flatMap(tuple -> {
+                                long fileLength = tuple.getT1();
+                                String contentType = tuple.getT2();
+
+                                long start = 0;
+                                long end = fileLength - 1; // 전체 파일의 마지막 바이트 인덱스
+
+                                if (rangeHeader != null && !rangeHeader.isEmpty()) {
+                                    List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
+                                    if (!ranges.isEmpty()) {
+                                        HttpRange range = ranges.get(0); // 첫 번째 범위만 사용
+                                        start = range.getRangeStart(fileLength);
+                                        end = range.getRangeEnd(fileLength); // 요청된 범위의 마지막 바이트 인덱스
+                                    }
+                                }
+
+                                long currentChunkSize = end - start + 1;
+
+                                if (currentChunkSize <= 0) {
+                                    log.warn("계산된 청크 크기가 0 이하입니다. fileId: {}, range: {}, start: {}, end: {}, currentChunkSize: {}",
+                                            fileId, rangeHeader, start, end, currentChunkSize);
+                                    return Mono.error(new RangeNotSatisfiableException("계산된 청크 사이즈가 0 이하입니다."));
+                                }
+
+                                String rangeResponse = "bytes " + start + "-" + end + "/" + fileLength;
+
+                                return Mono.just(new VideoMetaRecord(videoPath, contentType, rangeResponse, start, end, currentChunkSize));
+                            })
+                            .onErrorResume(IOException.class, e -> {
+                                log.error("비디오 청크 처리 중 IOException 발생. fileId: {}, path: {}: {}", fileId, videoPath, e.getMessage());
+                                return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "비디오 파일 읽기 중 오류 발생", e));
+                            });
+                })
+                .onErrorResume(ResponseStatusException.class, Mono::error); // 이미 ResponseStatusException인 경우 그대로 전파
+    }
+
+    public Flux<DataBuffer> getVideoDataBuffer(Path videoPath, long start, long end) {
+
+        // 실제 전송할 청크 크기
+        long currentChunkSize = end - start + 1;
+
+        if (currentChunkSize <= 0) {
+            log.warn("계산된 청크 크기가 0 이하입니다. videoPath: {}, start: {}, end: {}, currentChunkSize: {}",
+                    videoPath, start, end, currentChunkSize);
+            return Flux.error(new RangeNotSatisfiableException("계산된 청크 사이즈가 0 이하입니다."));
+        }
+
+        Resource videoResource = new FileSystemResource(videoPath);
+
+        // 데이터버퍼 플럭스 생성
+        Flux<DataBuffer> dataBufferFlux = DataBufferUtils.read(videoResource, start, dataBufferFactory, 4096);
+
+//        // 시작 바이트 스킵
+//        dataBufferFlux = DataBufferUtils.skipUntilByteCount(dataBufferFlux, start);
+        // 종료 바이트 잘라냄
+        dataBufferFlux = DataBufferUtils.takeUntilByteCount(dataBufferFlux, currentChunkSize);
+
+        return dataBufferFlux
+                .onErrorResume(ResponseStatusException.class, Flux::error) // 이미 ResponseStatusException인 경우 그대로 전파
+                .onErrorResume(e -> { // 그 외 예상치 못한 에러 처리
+                    log.error("getVideoChunk 처리 중 예상치 못한 오류 발생. videoPath: {}: {}", videoPath, e.getMessage(), e);
+                    return Flux.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "비디오 청크를 가져오는 중 예상치 못한 오류 발생", e));
+                });
+    }
+
 
 
     public String getHlsOriginal(String videoPath) throws IOException {
@@ -255,26 +339,39 @@ public class VideoService {
                                                     final int SEGMENT_LENGTH = 10;
 
                                                     BigDecimal prevFrame = new BigDecimal("0.0");
-                                                    BigDecimal nowFrame;
+                                                    BigDecimal nowFrame = new BigDecimal("0.0");;
                                                     BigDecimal segmentLengthBD = new BigDecimal(SEGMENT_LENGTH);
+                                                    BigDecimal duration;
 
                                                     // 각 키 프레임을 순차적으로 비교
                                                     for (List<String> keyFrames : keyFrameStrings){
                                                         // 키 프레임이 이전 프레임+10을 넘어가면 입력.
                                                         nowFrame = new BigDecimal(keyFrames.get(1));
                                                         if (nowFrame.compareTo(prevFrame.add(segmentLengthBD)) >= 0){
-                                                            BigDecimal duration = nowFrame.subtract(prevFrame);
+                                                            duration = nowFrame.subtract(prevFrame);
 
                                                             m3u8Builder.append("#EXTINF:")
                                                                 .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
                                                                 .append(videoBaseUrl).append(hlstsUrl)
                                                                 .append("?fileId=").append(fileId)
                                                                 .append("&ss=").append(prevFrame.toPlainString())
-                                                                .append("&to=").append(nowFrame.add(new BigDecimal("0.01")).toPlainString())
+                                                                .append("&to=").append(nowFrame.toPlainString())
                                                                 .append("&type=").append(type)
                                                                 .append('\n');
                                                             prevFrame = nowFrame;
                                                         }
+                                                    }
+                                                    if (nowFrame.compareTo(prevFrame)>0){
+                                                        duration = nowFrame.subtract(prevFrame);
+
+                                                        m3u8Builder.append("#EXTINF:")
+                                                                .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
+                                                                .append(videoBaseUrl).append(hlstsUrl)
+                                                                .append("?fileId=").append(fileId)
+                                                                .append("&ss=").append(prevFrame.toPlainString())
+                                                                .append("&to=").append(nowFrame.toPlainString())
+                                                                .append("&type=").append(type)
+                                                                .append('\n');
                                                     }
                                                     m3u8Builder.append("\n").append("#EXT-X-ENDLIST");
                                                     return m3u8Builder.toString();
@@ -589,18 +686,30 @@ public class VideoService {
                 PlayListRecord record = new PlayListRecord(
                         resolution.getType(),
                         videoBaseUrl+hlsm3u8Url+"?fileId="+ fileId +"&type="+resolution.getType(),
-                        String.valueOf(resolution.getHeight()),
+                        String.valueOf(resolution.getHeight())+"p",
                         fileId,
                         "application/x-mpegURL"
                 );
                 playListRecords.add(record);
             }
         }
+        // 정규 해상도가 아니면 최종적으로 한번 더 넣음
+        if (!VideoResolutionEnum.isHeightSupported(Integer.parseInt(heightPixel))){
+            PlayListRecord record = new PlayListRecord(
+                    "0",
+                    videoBaseUrl+hlsm3u8Url+"?fileId="+ fileId +"&type=0",
+                    heightPixel+"p",
+                    fileId,
+                    "application/x-mpegURL"
+            );
+            playListRecords.add(record);
+        }
+
         // 원본 비디오 리스트 최종 추가
         PlayListRecord record = new PlayListRecord(
-                "0",
+                "99",
                 videoBaseUrl+filerangeUrl+"?fileId="+ fileId,
-                "0",
+                "원본",
                 fileId,
                 "video/mp4"
         );

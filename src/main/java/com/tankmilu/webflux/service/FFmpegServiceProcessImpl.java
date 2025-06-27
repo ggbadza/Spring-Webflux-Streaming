@@ -215,7 +215,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
             final Path intermediateFile2 = generateTempFilePath("2","ts"); // 2단계 임시 파일
 
             BigDecimal firstStart = new BigDecimal(start);
-            firstStart = firstStart.add(new BigDecimal("-3"));
+            firstStart = firstStart.add(new BigDecimal("-0.064001")); //48000 샘플링 기준
 
 //            BigDecimal firstTo = new BigDecimal(to);;
 //            firstTo = firstTo.add(new BigDecimal("1"));
@@ -228,9 +228,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-copyts",
                     "-c:v", "copy",
                     "-c:a", audioCodec, // 오디오 코덱은 처음에 인코딩
+                    "-ar", "48000",
                     intermediateFile1.toString()
             ));
-
+            
             // 2단계 FFmpeg 명령어 정의
             // intermediateFile1을 입력으로 받아 정밀하게 트랜스코딩 후 intermediateFile2를 생성합니다.
             List<String> secondCommand = new ArrayList<>(Arrays.asList(
@@ -241,11 +242,12 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 //                    "-vf", "setpts=PTS-STARTPTS+"+start+"/TB",
 //                    "-af", "setpts=PTS-STARTPTS+"+start+"/TB",
 //                    "-vf", "trim=start=" + start + ":end=" + to, // 정밀하게 자르기 위한 비디오 필터
+//                    "-vf", "format=yuv420p",
                     "-output_ts_offset", start,
                     "-copyts",
                     "-c:v", videoCodec, // 비디오 코덱은 두번째 인코딩
                     "-c:a", "copy", // 오디오 코덱 샘플링 문제로 인코딩 시 밀림 현상 발생하므로 두번째에 copy
-//                    "-preset", "fast",
+                    "-preset", "veryfast",
                     "-f", "mpegts",
                     intermediateFile2.toString()
             ));
@@ -262,13 +264,13 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                             262144
                     ))
                     .doFinally(signalType -> { // 모든 작업 완료/실패 후 임시 파일 2개 모두 삭제
-                        try {
-                            Files.deleteIfExists(intermediateFile1);
-                            Files.deleteIfExists(intermediateFile2);
-                            log.info("임시 파일 삭제 완료: {}, {}", intermediateFile1.getFileName(), intermediateFile2.getFileName());
-                        } catch (IOException e) {
-                            log.error("임시 파일 삭제 실패", e);
-                        }
+//                        try {
+//                            Files.deleteIfExists(intermediateFile1);
+//                            Files.deleteIfExists(intermediateFile2);
+//                            log.info("임시 파일 삭제 완료: {}, {}", intermediateFile1.getFileName(), intermediateFile2.getFileName());
+//                        } catch (IOException e) {
+//                            log.error("임시 파일 삭제 실패", e);
+//                        }
                     });
         });
     }
@@ -461,6 +463,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
      * @return 프로세스 완료 시 onComplete 신호를 보내는 Mono<Void>
      */
     private Mono<Void> runCommandAsync(List<String> command) {
+        log.error(command.toString());
         return Mono.fromCallable(() -> {
                     ProcessBuilder pb = new ProcessBuilder(command);
                     Process process = pb.start();
@@ -488,7 +491,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         Schedulers.boundedElastic().schedule(() -> {
             try (InputStream is = inputStream) {
                 byte[] buffer = new byte[1024];
-                while (is.read(buffer) != -1) {
+                int bytesRead;
+                while ((bytesRead=is.read(buffer)) != -1) {
+                    String dataContent = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+                    log.error("읽은 데이터: [{}]", dataContent);
                     // 스트림 비워주는 용도
                 }
             } catch (IOException e) {
@@ -509,18 +515,17 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
     // FFmpeg command에 해상도 옵션 더하는 메소드
     private void addResolutionOptions(List<String> command, String type) {
-        // VideoResolutionEnum은 기존 코드에 있던 Enum이라고 가정합니다.
-        // VideoResolutionEnum resolution = VideoResolutionEnum.fromType(type).orElse(null);
-        // if (resolution == null) return;
 
-        String scaleValue = null;
-        // 실제 구현에서는 Enum을 사용하는 것이 좋습니다.
-        switch (type) {
-            case "480p": scaleValue = "scale=-2:480"; break;
-            case "720p": scaleValue = "scale=-2:720"; break;
-            case "1080p": scaleValue = "scale=-2:1080"; break;
-            case "1440p": scaleValue = "scale=-2:1440"; break;
-        }
+        VideoResolutionEnum resolution = VideoResolutionEnum.fromType(type)
+                .orElse(null);
+
+        String scaleValue = switch (Objects.requireNonNull(resolution)) {
+            case RES_480P -> "scale=-2:480";
+            case RES_720P -> "scale=-2:720";
+            case RES_1080P -> "scale=-2:1080";
+            case RES_1440P -> "scale=-2:1440";
+            default -> null;
+        };
 
         if (scaleValue != null) {
             int insertPos = command.indexOf("-c:v") + 2;

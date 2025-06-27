@@ -13,6 +13,7 @@ import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -47,34 +48,27 @@ public class VideoController {
      * 비디오 파일의 범위 요청을 처리함
      * 
      * @param fileId 비디오 파일 ID
-     * @param start_bytes 요청 바이트 시작 지점
-     * @param end_bytes 요청 바이트 종료 지점
      * @param rangeHeader HTTP Range 헤더 값
      * @return 요청된 범위의 비디오 데이터 반환
      */
     @GetMapping("${app.video.urls.filerange}")
-    public Mono<ResponseEntity<Mono<DataBuffer>>> getVideoRange(
+    public Mono<Void> getVideoRange(
             @RequestParam Long fileId,
-            @RequestParam(required = false) String start_bytes,
-            @RequestParam(required = false) String end_bytes,
-            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader) {
+            @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
+            ServerHttpResponse response) {
 
-        String range;
-        if (start_bytes != null && end_bytes != null) {
-            range = "bytes=" + start_bytes + "-" + end_bytes;
-        } else {
-            range = rangeHeader;
-        }
 
-        return videoService.getVideoChunk(fileId, range)
-                .map(videoMonoRecord ->
-                        ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                                .header(HttpHeaders.CONTENT_TYPE, videoMonoRecord.contentType())
-                                .header(HttpHeaders.CONTENT_RANGE, videoMonoRecord.contentRange())
-                                .header(HttpHeaders.CONTENT_LENGTH, String.valueOf(videoMonoRecord.contentLength())) // Content-Length 추가
-                                .body(videoMonoRecord.data())
-                )
-                .switchIfEmpty(Mono.just(ResponseEntity.status(HttpStatus.NOT_FOUND).build())); // 비디오 정보를 찾지 못한 경우
+        return videoService.getVideoMeta(fileId, rangeHeader)
+                .flatMap(videoMetaRecord -> {
+                    response.setStatusCode(HttpStatus.PARTIAL_CONTENT);
+                    response.getHeaders().add(HttpHeaders.ACCEPT_RANGES, "bytes");
+                    response.getHeaders().add(HttpHeaders.CONTENT_TYPE, videoMetaRecord.contentType());
+                    response.getHeaders().add(HttpHeaders.CONTENT_RANGE, videoMetaRecord.contentRange());
+                    response.getHeaders().add(HttpHeaders.CONTENT_LENGTH, String.valueOf(videoMetaRecord.contentLength()));
+
+                    Flux<DataBuffer> dataBufferFlux = videoService.getVideoDataBuffer(videoMetaRecord.videoPath(),videoMetaRecord.startByte(),videoMetaRecord.endByte() );
+                    return response.writeWith(dataBufferFlux);
+                });
     }
 
     /**
