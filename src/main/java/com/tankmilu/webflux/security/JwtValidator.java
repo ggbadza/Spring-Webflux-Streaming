@@ -22,6 +22,9 @@ public class JwtValidator {
                     .build()
                     .parseSignedClaims(token);
             return true;
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            // 만료된 토큰
+            log.warn("Expired JWT token: {}", e.getMessage());
         } catch (SignatureException e) {
             // 서명 오류
             log.error("Invalid JWT signature: {}", e.getMessage());
