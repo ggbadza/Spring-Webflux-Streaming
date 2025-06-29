@@ -84,6 +84,10 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 .collectList()
                 .block();
 
+        Long maxFileId = fileRepository.findMaxFileId()
+                .defaultIfEmpty(0L) // Mono가 empty()로 완료되면 0L을 반환
+                .block();
+
         Map<Long, List<ContentsFileEntity>> fileEntityByContentsId = new HashMap<>();
         if (allFiles != null) {
             for (ContentsFileEntity file : allFiles) {
@@ -185,9 +189,13 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 continue;
             }
 
+            // 자막 업데이트 할 때 사용할 리스트 생성
+            List<ContentsFileEntity> InsertOrUpdateFiles = new ArrayList<>();
+
+            // existingFiles : 기존 DB, filteredFiles: 현재 파일
             // 4. 기존 엔티티 객체를 이용하여 현재 상태를 조회하여 엔티티 수정 혹은 삭제 리스트에 추가
             for (Map.Entry<String,ContentsFileEntity> existingEntry : existingFiles.entrySet()){
-                // 4-1. 기존 파일 경로를 현재 콘텐츠의 파일 경로 목록과 비교하여 삭제 리스트에 추가
+                // 4-1. 기존 파일 경로를 현재 콘텐츠의 파일 경로 목록과 비교하여 기존 파일이 삭제 리스트에 추가
                 if (!filteredFiles.containsKey(existingEntry.getKey())) {
                     filesToDelete.add(existingEntry.getValue());
                 // 4-2.자막 파일 경로가 변동 시(혹은 추가, 삭제 시) 업데이트
@@ -209,52 +217,11 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         isUpdated = true;
                     }
 
-                    // 4-3. 자막이 ass가 아닌 경우 자막 임시 폴더 검사 후 미존재시 ass 변환 수행
-                    if(existingEntry.getValue().getSubtitlePath()!=null && !existingEntry.getValue().getSubtitlePath().isEmpty()){
-                        if(!SubtitleExtensionEnum.ASS.isSupportedFile(existingEntry.getValue().getSubtitlePath())){
-                            log.info("ID : {}, FileName : {}, subtitlePath : {}",existingEntry.getValue().getContentsId(),existingEntry.getValue().getFileName(),existingEntry.getValue().getSubtitlePath());
-                            String outputPath = tempSubtitleFolder+'/'+existingEntry.getValue().getFileId()+".f.ass";
-                            // outputPath에 실제 파일이 존재하는지 체크
-                            File outputFile = new File(outputPath);
-                            if (!outputFile.exists()) {
-                                log.info("ass로 자막 변환 수행. file ID: {}", existingEntry.getValue().getFileId());
-                                String originalSubtitlePath = folderPath+'/'+existingEntry.getValue().getSubtitlePath();
-                                File originalSubtitleFile = new File(originalSubtitlePath);
-                                String detectedEncoding = null;
-
-                                // 자막 파일의 인코딩 체크
-                                byte[] buf = new byte[65536];
-                                try (FileInputStream fis = new FileInputStream(originalSubtitleFile)) {
-                                    UniversalDetector detector = new UniversalDetector(null);
-                                    int nread;
-                                    while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
-                                        detector.handleData(buf, 0, nread);
-                                    }
-                                    detector.dataEnd();
-                                    detectedEncoding = detector.getDetectedCharset();
-                                    detector.reset(); // 다음 사용을 위해 리셋
-                                    if (detectedEncoding==null){
-                                        log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}", originalSubtitlePath);
-                                        detectedEncoding = "CP949";
-                                    } else if (detectedEncoding.startsWith("UTF")){
-                                        detectedEncoding="UTF-8";
-                                    }
-                                } catch (IOException e) {
-                                    log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}. Error: {}", originalSubtitlePath, e.getMessage());
-                                    detectedEncoding = "CP949";
-                                }
-
-                                fFmpegServiceProcess.convertSubtitleToAss(originalSubtitlePath,outputPath,"맑은 고딕",20, detectedEncoding).block();
-                            } else {
-                                log.info("ass 자막 파일이 이미 존재합니다. : {}", outputPath);
-                            }
-//                            existingEntry.getValue().setSubtitlePath(outputPath);
-                        }
-                    }
 
                     // 파일 경로나 자막 경로 중 하나라도 변경된 경우 업데이트 리스트에 추가
                     if (isUpdated) {
                         filesToUpdate.add(existingEntry.getValue());
+                        InsertOrUpdateFiles.add(existingEntry.getValue());
                     }
                 }
             }
@@ -271,6 +238,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 if (!existingFiles.containsKey(fileNameWithoutExt)) {
                     ContentsFileEntity newFile = ContentsFileEntity
                             .builder()
+                            .fileId(maxFileId+1)
                             .contentsId(content.getId())
                             .fileName(fileNameWithoutExt)
                             .filePath(fileDTO[0])
@@ -283,12 +251,59 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         newFile.setSubtitleCreatedAtNow();
                     }
                     filesToInsert.add(newFile);
+                    InsertOrUpdateFiles.add(newFile);
                 }
             }
             if (isContentsUpdated){
                 content.setNewRecord(false);
                 content.setModifiedAt(LocalDateTime.now());
                 contentsToUpdate.add(content);
+            }
+
+
+
+            for(ContentsFileEntity entity: InsertOrUpdateFiles) {
+                // 자막이 ass가 아닌 경우 자막 임시 폴더 검사 후 미존재시 ass 변환 수행
+                if (entity.getSubtitlePath() != null && !entity.getSubtitlePath().isEmpty()) { // 실제 자막 파일이 있는 경우에만
+                    if (!SubtitleExtensionEnum.ASS.isSupportedFile(folderPath + '/' + entity.getSubtitlePath())) { // 해당 자막이 ASS가 아닌 경우에만
+                        log.info("ID : {}, FileName : {}, subtitlePath : {}", entity.getContentsId(), entity.getFileName(), entity.getSubtitlePath());
+                        String outputPath = tempSubtitleFolder + '/' + entity.getFileId() + ".f.ass";
+                        // outputPath에 실제 파일이 존재하는지 체크
+                        File outputFile = new File(outputPath);
+                        if (!outputFile.exists()) { // 이미 파일 존재하는지 체크
+                            log.info("ass로 자막 변환 수행. file ID: {}", entity.getFileId());
+                            String originalSubtitlePath = folderPath + '/' + entity.getSubtitlePath();
+                            File originalSubtitleFile = new File(originalSubtitlePath);
+                            String detectedEncoding = null;
+
+                            // 자막 파일의 인코딩 체크
+                            byte[] buf = new byte[65536];
+                            try (FileInputStream fis = new FileInputStream(originalSubtitleFile)) {
+                                UniversalDetector detector = new UniversalDetector(null);
+                                int nread;
+                                while ((nread = fis.read(buf)) > 0 && !detector.isDone()) {
+                                    detector.handleData(buf, 0, nread);
+                                }
+                                detector.dataEnd();
+                                detectedEncoding = detector.getDetectedCharset();
+                                detector.reset(); // 다음 사용을 위해 리셋
+                                if (detectedEncoding == null) {
+                                    log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}", originalSubtitlePath);
+                                    detectedEncoding = "CP949";
+                                } else if (detectedEncoding.startsWith("UTF")) {
+                                    detectedEncoding = "UTF-8";
+                                }
+                            } catch (IOException e) {
+                                log.error("자막 파일의 인코딩 체크 실패. 'CP949'로 설정 : {}. Error: {}", originalSubtitlePath, e.getMessage());
+                                detectedEncoding = "CP949";
+                            }
+
+                            fFmpegServiceProcess.convertSubtitleToAss(originalSubtitlePath, outputPath, "맑은 고딕", 20, detectedEncoding).block();
+                        } else {
+                            log.info("ass 자막 파일이 이미 존재합니다. : {}", outputPath);
+                        }
+                    }
+                }
             }
         }
         

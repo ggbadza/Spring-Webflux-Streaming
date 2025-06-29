@@ -43,4 +43,11 @@ public interface ContentsFileRepository extends R2dbcRepository<ContentsFileEnti
     Flux<ContentsFileEntity> findAllFilesSharingSameContentAsFileId(Long fileId);
 
 
+    /**
+     * folder_tree 테이블에서 file_id의 최댓값을 조회합니다.
+     * @return Mono<Long> 최댓값. 결과가 없으면 empty Mono를 반환합니다.
+     */
+    @Query("SELECT MAX(file_id) FROM contents_file_entity")
+    Mono<Long> findMaxFileId();
+
 }
