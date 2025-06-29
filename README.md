@@ -55,8 +55,8 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 | HTTP Method | URL                                   | 설명                     | 요청 본문 (Request Body)      | 응답 (Response)                                                              |
 |-------------|---------------------------------------|--------------------------|-------------------------------|------------------------------------------------------------------------------|
 | POST        | `/api/users/register`                 | 회원가입                 | `UserRegRequest`              | `UserRegResponse`                                                            |
-| POST        | `/api/users/login`                    | 로그인                   | `LoginRequestRecord`          | `ResponseEntity<Boolean>` (JWT 토큰은 쿠키에 담겨 반환)                       |
-| GET, POST   | `/api/users/reissue`                  | 액세스 토큰 재발급       | -                             | `ResponseEntity<Boolean>` (JWT 토큰은 쿠키에 담겨 반환)                       |
+| POST        | `/api/users/login`                    | 로그인                   | `LoginRequestRecord`          | `ResponseEntity<Boolean>` <br/>(JWT 토큰은 쿠키에 담겨 반환)                       |
+| GET, POST   | `/api/users/reissue`                  | 액세스 토큰 재발급       | -                             | `ResponseEntity<Boolean>` <br/>(JWT 토큰은 쿠키에 담겨 반환)                       |
 | GET, POST   | `/api/users/me`                       | 내 정보 조회             | -                             | `UserRegResponse`                                                            |
 | GET, POST   | `/api/users/logout`                   | 로그아웃                 | -                             | `ResponseEntity<Boolean>`                                                    |
 
@@ -65,12 +65,12 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 | HTTP Method | URL                                   | 설명                           | 요청 파라미터 (Request Parameters)                               | 응답 (Response)                                                              |
 |-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
 | GET         | `/video/test`                         | API 연결 테스트                | -                                                                | `String`                                                                     |
-| GET         | `/video/file-range`                   | 비디오 스트리밍 (Range 요청)   | `fileId` (Long)                                                  | `Mono<Void>` (비디오 데이터 스트림)                                          |
+| GET         | `/video/file-range`                   | 비디오 스트리밍 (Range 요청)   | `fileId` (Long)                                                  | `Mono<Void>` <br/>(비디오 데이터 스트림)                                          |
 | GET         | `/video/hls.m3u8`                     | HLS m3u8 플레이리스트 제공     | `fileId` (Long), `type` (String, optional, default: "0")         | `ResponseEntity<String>`                                                     |
 | GET         | `/video/hls.m3u8.master`              | HLS 마스터 플레이리스트 제공   | `fileId` (Long)                                                  | `ResponseEntity<String>`                                                     |
 | GET         | `/video/playlist`                     | 커스텀 비디오 플레이리스트 제공| `fileId` (Long)                                                  | `Flux<PlayListRecord>`                                                       |
-| GET         | `/video/hls.ts`                       | HLS TS 세그먼트 제공           | `fileId` (Long), `ss` (String), `to` (String), `type` (String, optional, default: "0") | `Flux<DataBuffer>` (TS 데이터 스트림)                                        |
-| GET         | `/video/subtitle`                     | 자막 파일 제공                 | `fileId` (Long), `type` (String, optional, default: "f")         | `Flux<DataBuffer>` (자막 데이터 스트림)                                      |
+| GET         | `/video/hls.ts`                       | HLS TS 세그먼트 제공           | `fileId` (Long), `ss` (String), `to` (String), `type` (String, optional, default: "0") | `Flux<DataBuffer>` <br/>(TS 데이터 스트림)                                        |
+| GET         | `/video/subtitle`                     | 자막 파일 제공                 | `fileId` (Long), `type` (String, optional, default: "f")         | `Flux<DataBuffer>` <br/>(자막 데이터 스트림)                                      |
 | GET         | `/video/subtitle-metadata`            | 자막 메타데이터 제공           | `fileId` (Long)                                                  | `Mono<SubtitleMetadataResponse>`                                             |
 
 ### 콘텐츠 API
@@ -98,15 +98,15 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 ### 배치 API
 
-| HTTP Method | URL                                   | 설명                                   | 요청 본문 (Request Body)              | 응답 (Response)                                                              |
-|-------------|---------------------------------------|----------------------------------------|---------------------------------------|------------------------------------------------------------------------------|
-| POST        | `/api/batch/folder-sync`              | 폴더 구조 동기화 배치 실행             | `FolderSyncBatchRequest`              | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
-| POST        | `/api/batch/folder-to-contents`       | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest`        | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
-| POST        | `/api/batch/contents-to-file`         | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest`          | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
-| GET         | `/api/batch/jobs`                     | 배치 작업 실행 내역 조회               | -                                     | `Mono<ResponseEntity<List<Map<String, Object>>>>`                            |
-| GET         | `/api/batch/status/{jobId}`           | 특정 배치 작업 상태 조회               | -                                     | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
-| GET         | `/api/batch/stop/{jobExecutionId}`    | 실행 중인 배치 작업 중지               | -                                     | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
-| GET         | `/api/batch/restart/{jobExecutionId}` | 실패한 배치 작업 재시작                | -                                     | `Mono<ResponseEntity<Map<String, Object>>>`                                  |
+| HTTP Method | URL                                   | 설명                                   | 요청 본문 (Request Body)              | 응답 (Response) |
+|-------------|---------------------------------------|----------------------------------------|---------------------------------------|---------------|
+| POST        | `/api/batch/folder-sync`              | 폴더 구조 동기화 배치 실행             | `FolderSyncBatchRequest`              | -             |
+| POST        | `/api/batch/folder-to-contents`       | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest`        | -             |
+| POST        | `/api/batch/contents-to-file`         | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest`          | -             |
+| GET         | `/api/batch/jobs`                     | 배치 작업 실행 내역 조회               | -                                     | -             |
+| GET         | `/api/batch/status/{jobId}`           | 특정 배치 작업 상태 조회               | -                                     | -             |
+| GET         | `/api/batch/stop/{jobExecutionId}`    | 실행 중인 배치 작업 중지               | -                                     | -             |
+| GET         | `/api/batch/restart/{jobExecutionId}` | 실패한 배치 작업 재시작                | -                                     | -             |
 
 ## 프로젝트 구조
 
