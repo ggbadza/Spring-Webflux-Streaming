@@ -66,11 +66,11 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 |-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
 | GET         | `/video/test`                         | API 연결 테스트                | -                                                                | `String`                                                                     |
 | GET         | `/video/file-range`                   | 비디오 스트리밍 (Range 요청)   | `fileId` (Long)                                                  | `Mono<Void>` <br/>(비디오 데이터 스트림)                                          |
-| GET         | `/video/hls.m3u8`                     | HLS m3u8 플레이리스트 제공     | `fileId` (Long), `type` (String, optional, default: "0")         | `ResponseEntity<String>`                                                     |
+| GET         | `/video/hls.m3u8`                     | HLS m3u8 플레이리스트 제공     | `fileId` (Long), <br/>`type` (String, optional, default: "0")         | `ResponseEntity<String>`                                                     |
 | GET         | `/video/hls.m3u8.master`              | HLS 마스터 플레이리스트 제공   | `fileId` (Long)                                                  | `ResponseEntity<String>`                                                     |
 | GET         | `/video/playlist`                     | 커스텀 비디오 플레이리스트 제공| `fileId` (Long)                                                  | `Flux<PlayListRecord>`                                                       |
-| GET         | `/video/hls.ts`                       | HLS TS 세그먼트 제공           | `fileId` (Long), `ss` (String), `to` (String), `type` (String, optional, default: "0") | `Flux<DataBuffer>` <br/>(TS 데이터 스트림)                                        |
-| GET         | `/video/subtitle`                     | 자막 파일 제공                 | `fileId` (Long), `type` (String, optional, default: "f")         | `Flux<DataBuffer>` <br/>(자막 데이터 스트림)                                      |
+| GET         | `/video/hls.ts`                       | HLS TS 세그먼트 제공           | `fileId` (Long), <br/>`ss` (String), <br/>`to` (String),<br/> `type` (String, optional, default: "0") | `Flux<DataBuffer>` <br/>(TS 데이터 스트림)                                        |
+| GET         | `/video/subtitle`                     | 자막 파일 제공                 | `fileId` (Long), <br/>`type` (String, optional, default: "f")         | `Flux<DataBuffer>` <br/>(자막 데이터 스트림)                                      |
 | GET         | `/video/subtitle-metadata`            | 자막 메타데이터 제공           | `fileId` (Long)                                                  | `Mono<SubtitleMetadataResponse>`                                             |
 
 ### 콘텐츠 API
@@ -78,7 +78,7 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 | HTTP Method | URL                                   | 설명                           | 요청 파라미터/본문                                               | 응답 (Response)                                                              |
 |-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
 | GET         | `/api/contents/info`                  | 콘텐츠 상세 정보 조회          | `contentsId` (Long)                                              | `Mono<ContentsResponse>`                                                     |
-| POST        | `/api/contents/info-recently`         | 최근 변경된 콘텐츠 목록 조회   | `type` (String), `pid` (Long)                                    | `Flux<ContentsResponse>`                                                     |
+| POST        | `/api/contents/info-recently`         | 최근 변경된 콘텐츠 목록 조회   | `type` (String), <br/>`pid` (Long)                                    | `Flux<ContentsResponse>`                                                     |
 | GET         | `/api/contents/recommend`             | 추천 콘텐츠 목록 조회          | -                                                                | `Flux<RecommendContentsResponse>`                                            |
 | GET         | `/api/contents/files`                 | 콘텐츠 파일 목록 조회          | `contentsId` (Long)                                              | `Flux<FileInfoSummaryResponse>`                                              |
 | GET         | `/api/contents/contents-info-with-video-files` | 콘텐츠 정보 및 비디오 파일 목록 조회 | `fileId` (Long)                                                  | `Mono<ContentsInfoWithFilesResponse>`                                        |
@@ -92,9 +92,9 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 | HTTP Method | URL                                   | 설명                           | 요청 파라미터 (Request Parameters)                               | 응답 (Response)                                                              |
 |-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
-| GET         | `/api/filesystem/files`               | 디렉토리 내 파일/폴더 목록 조회| `type` (String), `folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
-| GET         | `/api/filesystem/folders`             | 디렉토리 내 폴더 목록 조회     | `type` (String), `folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
-| POST        | `/api/filesystem/video-info`          | 비디오 파일 정보 조회          | `type` (String), `pid` (Long, optional, default: 0), `fn` (String) | `Mono<VideoFileRecord>`                                                      |
+| GET         | `/api/filesystem/files`               | 디렉토리 내 파일/폴더 목록 조회| `type` (String), <br/>`folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
+| GET         | `/api/filesystem/folders`             | 디렉토리 내 폴더 목록 조회     | `type` (String), <br/>`folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
+| POST        | `/api/filesystem/video-info`          | 비디오 파일 정보 조회          | `type` (String), <br/>`pid` (Long, optional, default: 0), `fn` (String) | `Mono<VideoFileRecord>`                                                      |
 
 ### 배치 API
 
