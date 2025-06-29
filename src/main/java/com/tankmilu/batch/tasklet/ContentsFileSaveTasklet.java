@@ -81,7 +81,7 @@ public class ContentsFileSaveTasklet implements Tasklet {
             }
 
             // 4. 수정 컨텐츠 엔티티 처리
-            if (!filesToUpdate.isEmpty()) {
+            if (!contentsToUpdate.isEmpty()) {
                 operations = operations.then(contentsObjectRepository.saveAll(contentsToUpdate).then());
                 log.info("수정 컨텐츠 엔티티 등록 완료");
             }

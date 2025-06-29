@@ -49,7 +49,7 @@ public class FolderSyncConfig {
                 .incrementer(new RunIdIncrementer())
                 .start(dataLoadStep(null))     // Step1: 데이터 로드
                 .next(directoryProcessStep(null,null))    // Step2: 디렉토리 처리
-                .next(dbUpdateStep(null))               // Step3: DB 업데이트
+                .next(dbUpdateStep(null,null))               // Step3: DB 업데이트
                 .build();
     }
 
@@ -81,9 +81,10 @@ public class FolderSyncConfig {
     @Bean
     @JobScope
     public Step dbUpdateStep(
-            @Value("#{jobParameters['type']}") String type) {
+            @Value("#{jobParameters['type']}") String type,
+            @Value("#{jobParameters['deleteYn']}") String deleteYn) {
         return new StepBuilder("dbUpdateStep", jobRepository)
-                .tasklet(dbUpdateTasklet(type), transactionManager)
+                .tasklet(dbUpdateTasklet(type, deleteYn), transactionManager)
                 .build();
     }
 
@@ -158,12 +159,13 @@ public class FolderSyncConfig {
     @StepScope
     @SuppressWarnings("unchecked")
     public FolderEntityUpdateTasklet<?> dbUpdateTasklet(
-            @Value("#{jobParameters['type']}") String type) {
+            @Value("#{jobParameters['type']}") String type,
+            @Value("#{jobParameters['deleteYn']}") String deleteYn) {
 
         return switch (type) {
-            case "anime" -> new FolderEntityUpdateTasklet<>(animationFolderTreeRepository, transactionalOperator);
-            case "movie" -> new FolderEntityUpdateTasklet<>(movieFolderTreeRepository, transactionalOperator);
-            case "drama" -> new FolderEntityUpdateTasklet<>(dramaFolderTreeRepository, transactionalOperator);
+            case "anime" -> new FolderEntityUpdateTasklet<>(animationFolderTreeRepository, transactionalOperator, deleteYn);
+            case "movie" -> new FolderEntityUpdateTasklet<>(movieFolderTreeRepository, transactionalOperator, deleteYn);
+            case "drama" -> new FolderEntityUpdateTasklet<>(dramaFolderTreeRepository, transactionalOperator, deleteYn);
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         };
     }

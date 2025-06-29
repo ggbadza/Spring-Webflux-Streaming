@@ -59,8 +59,9 @@ public class BatchJobController {
 
         String type = folderSyncBatchRequest.type();
         String directoryPath = folderSyncBatchRequest.directoryPath();
+        String deleteYn = folderSyncBatchRequest.deleteYn();
         
-        log.info("폴더 동기화 배치 작업 요청 - 유형: {}, 경로: {}", type, directoryPath);
+        log.info("폴더 동기화 배치 작업 요청 - 유형: {}, 경로: {}, 삭제 유무: {}", type, directoryPath, deleteYn);
         
         // 배치 작업은 블로킹 작업이므로 별도 스레드에서 실행
         return Mono.fromCallable(() -> {
@@ -69,6 +70,7 @@ public class BatchJobController {
                 JobParameters params = new JobParametersBuilder()
                     .addString("type", type)
                     .addString("directoryPath", directoryPath)
+                    .addString("deleteYn", deleteYn)
                     .addDate("time", new Date())  // 매번 고유한 파라미터를 위해 현재 시간 추가
                     .toJobParameters();
                 
@@ -82,6 +84,7 @@ public class BatchJobController {
                 response.put("startTime", execution.getStartTime());
                 response.put("type", type);
                 response.put("directoryPath", directoryPath);
+                response.put("deleteYn", deleteYn);
                 
                 log.info("폴더 동기화 배치 작업 시작 - JobID: {}, 상태: {}", 
                         execution.getJobId(), execution.getStatus());
@@ -93,6 +96,7 @@ public class BatchJobController {
                 errorResponse.put("error", e.getMessage());
                 errorResponse.put("type", type);
                 errorResponse.put("directoryPath", directoryPath);
+                errorResponse.put("deleteYn", deleteYn);
                 return ResponseEntity.internalServerError().body(errorResponse);
             }
         }).subscribeOn(Schedulers.boundedElastic());  // 블로킹 작업을 위한 별도 스케줄러 사용

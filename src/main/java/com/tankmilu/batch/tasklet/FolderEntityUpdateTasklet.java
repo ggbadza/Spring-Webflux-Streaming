@@ -21,6 +21,7 @@ public class FolderEntityUpdateTasklet<T extends FolderTreeEntity> implements Ta
 
     private final FolderTreeRepository<T> repository;
     private final TransactionalOperator transactionalOperator; // ReactiveTransactionManager 는 내부 주입
+    private final String deleteYn;
 
     @Override
     public RepeatStatus execute(StepContribution contribution,
@@ -48,7 +49,7 @@ public class FolderEntityUpdateTasklet<T extends FolderTreeEntity> implements Ta
             log.warn("ExecutionContext에서 'folderMap'이 null로 로드되었습니다. 업데이트 작업이 수행되지 않습니다.");
             folderMap = new java.util.HashMap<>(); // 안전을 위해 빈 맵 초기화
         }
-        if (folderToDelete == null) {
+        if (folderToDelete == null || !deleteYn.equals("Y")) {
             log.warn("ExecutionContext에서 'folderToDelete'가 null로 로드되었습니다. 삭제 작업이 수행되지 않습니다.");
             folderToDelete = new java.util.ArrayList<>(); // 안전을 위해 빈 리스트 초기화
         }
