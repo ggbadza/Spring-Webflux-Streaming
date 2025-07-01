@@ -236,9 +236,10 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                 // existingFiles에서 해당 파일명이 있는지 확인
                 // 파일이 존재하지 않으면 새로운 엔티티를 생성하여 insert 리스트에 추가
                 if (!existingFiles.containsKey(fileNameWithoutExt)) {
+                    maxFileId++;
                     ContentsFileEntity newFile = ContentsFileEntity
                             .builder()
-                            .fileId(maxFileId+1)
+                            .fileId(maxFileId)
                             .contentsId(content.getId())
                             .fileName(fileNameWithoutExt)
                             .filePath(fileDTO[0])
