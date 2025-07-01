@@ -55,7 +55,8 @@ public class VideoController {
     public Mono<Void> getVideoRange(
             @RequestParam Long fileId,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader,
-            ServerHttpResponse response) {
+            ServerHttpResponse response,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
 
         return videoService.getVideoMeta(fileId, rangeHeader)
@@ -66,7 +67,7 @@ public class VideoController {
                     response.getHeaders().add(HttpHeaders.CONTENT_RANGE, videoMetaRecord.contentRange());
                     response.getHeaders().add(HttpHeaders.CONTENT_LENGTH, String.valueOf(videoMetaRecord.contentLength()));
 
-                    Flux<DataBuffer> dataBufferFlux = videoService.getVideoDataBuffer(videoMetaRecord.videoPath(),videoMetaRecord.startByte(),videoMetaRecord.endByte() );
+                    Flux<DataBuffer> dataBufferFlux = videoService.getVideoDataBuffer(userDetails.getSubscriptionCode(), videoMetaRecord.videoPath(),videoMetaRecord.startByte(),videoMetaRecord.endByte());
                     return response.writeWith(dataBufferFlux);
                 });
     }
@@ -86,27 +87,6 @@ public class VideoController {
                 .map(data -> {
                     HttpHeaders headers = new HttpHeaders();
                     headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL");
-                    return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                });
-    }
-
-    /**
-     * fMP4 형식의 HLS m3u8 플레이리스트를 제공함 (미사용)
-     * 
-     * @param fn 비디오 파일명
-     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
-     * @return fMP4 형식의 HLS m3u8 플레이리스트 콘텐츠 반환
-     */
-    @Deprecated
-    @GetMapping("${app.video.urls.hlsm3u8fmp4}")
-    public Mono<ResponseEntity<String>> getHlsM3u8Fmp4(
-            @RequestParam String fn,
-            @RequestParam(required = false, defaultValue = "0") String type) throws IOException {
-        return Mono.fromCallable(() -> videoService.getHlsM3u8Fmp4(fn,type)) // 비동기 작업 래핑
-                .subscribeOn(Schedulers.boundedElastic())           // 워커 쓰레드에 할당
-                .map(data -> { // m3u8 텍스트를 ResponseEntity에 맵핑
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "application/x-mpegURL;");
                     return new ResponseEntity<>(data, headers, HttpStatus.OK);
                 });
     }
@@ -191,48 +171,4 @@ public class VideoController {
         return videoService.getSubtitleMetadata(fileId, userDetails.getSubscriptionCode());
     }
 
-
-    /**
-     * HLS 초기화 세그먼트를 제공함 (더 이상 사용되지 않음)
-     * 
-     * @param fn 비디오 파일명
-     * @return HLS 초기화 세그먼트 데이터 반환
-     */
-    @Deprecated
-    @GetMapping("${app.video.urls.hlsinit}")
-    public Mono<ResponseEntity<InputStreamResource>> getInitVideo(
-            @RequestParam String fn) {
-        return Mono.fromCallable(() -> videoService.getHlsInitData(fn))
-                .subscribeOn(Schedulers.boundedElastic())
-                .map(data -> {
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
-                    return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                });
-    }
-
-    /**
-     * HLS fMP4 세그먼트를 제공함 (더 이상 사용되지 않음)
-     * 
-     * @param fn 비디오 파일명
-     * @param ss 시작 시간(초)
-     * @param to 종료 시간(초)
-     * @param type 비디오 해상도 타입 (0: 원본 해상도, 1: 480p, 2: 720p, 3:1080p, 4:1440p)
-     * @return 요청된 시간 범위의 fMP4 세그먼트 데이터 반환
-     */
-    @Deprecated
-    @GetMapping("${app.video.urls.hlsfmp4}")
-    public Mono<ResponseEntity<InputStreamResource>> getFmp4Video(
-            @RequestParam String fn,
-            @RequestParam String ss,
-            @RequestParam String to,
-            @RequestParam(required = false, defaultValue = "0") String type) {
-        return Mono.fromCallable(() -> videoService.getHlsFmp4(fn, ss, to, type))
-                .subscribeOn(Schedulers.boundedElastic())
-                .map(data -> {
-                    HttpHeaders headers = new HttpHeaders();
-                    headers.add(HttpHeaders.CONTENT_TYPE, "video/mp4;");
-                    return new ResponseEntity<>(data, headers, HttpStatus.OK);
-                });
-    }
 }

@@ -77,115 +77,6 @@ public class VideoService {
     private String tempHlsFolder;
 
 
-
-    public Mono<VideoMonoRecord> getVideoChunk(Long fileId, String rangeHeader) {
-        return contentsFileRepository.findFileWithContentInfo(fileId)
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "콘텐츠 파일 정보를 찾을 수 없습니다. ID: " + fileId)))
-                .flatMap(fileInfo -> {
-                    Path videoPath = Paths.get(fileInfo.getFullFilePath());
-
-                    if (!Files.exists(videoPath) || !Files.isReadable(videoPath)) {
-                        log.error("비디오 파일이 존재하지 않거나 읽을 수 없습니다: {}", videoPath);
-                        return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "비디오 파일을 찾을 수 없거나 접근할 수 없습니다."));
-                    }
-
-                    Mono<Long> fileLengthMono = Mono.fromCallable(() -> Files.size(videoPath))
-                            .subscribeOn(Schedulers.boundedElastic());
-
-                    Mono<String> contentTypeMono = Mono.fromCallable(() ->
-                                    Optional.ofNullable(Files.probeContentType(videoPath)).orElse("video/mp4"))
-                            .subscribeOn(Schedulers.boundedElastic());
-
-                    return Mono.zip(fileLengthMono, contentTypeMono)
-                            .flatMap(tuple -> {
-                                long fileLength = tuple.getT1();
-                                String contentType = tuple.getT2();
-
-                                long start = 0;
-                                long end = fileLength - 1; // 전체 파일의 마지막 바이트 인덱스
-
-                                if (rangeHeader != null && !rangeHeader.isEmpty()) {
-                                    List<HttpRange> ranges = HttpRange.parseRanges(rangeHeader);
-                                    if (!ranges.isEmpty()) {
-                                        HttpRange range = ranges.get(0); // 첫 번째 범위만 사용
-                                        start = range.getRangeStart(fileLength);
-                                        end = range.getRangeEnd(fileLength); // 요청된 범위의 마지막 바이트 인덱스
-                                    }
-                                }
-
-                                // 실제 전송할 청크의 끝 위치 결정 (요청된 범위의 끝 또는 청크 크기만큼)
-                                long currentChunkEnd = Math.min(start + CHUNK_SIZE - 1, end);
-                                int currentChunkSize = (int) (currentChunkEnd - start + 1);
-
-                                if (currentChunkSize <= 0) {
-                                    log.warn("계산된 청크 크기가 0 이하입니다. fileId: {}, range: {}, start: {}, end: {}, currentChunkEnd: {}",
-                                            fileId, rangeHeader, start, end, currentChunkEnd);
-                                    // 빈 응답 또는 적절한 오류 처리 (예: 416 Range Not Satisfiable)
-                                    // 여기서는 빈 DataBuffer를 포함하는 레코드를 반환하거나, 에러를 발생시킬 수 있습니다.
-                                    // 간단하게 빈 Mono를 포함한 레코드를 반환하여 빈 스트림을 나타낼 수 있습니다.
-                                    return Mono.just(new VideoMonoRecord(contentType, "bytes */" + fileLength, 0, Mono.empty()));
-                                }
-
-                                String rangeResponse = "bytes " + start + "-" + currentChunkEnd + "/" + fileLength;
-                                long contentLengthForChunk = currentChunkSize;
-
-                                // final 변수로 만들어 람다/내부 클래스에서 사용
-                                long finalStart = start;
-                                int finalChunkSize = currentChunkSize;
-
-                                Mono<DataBuffer> videoDataMono = Mono.create(sink -> {
-                                    try {
-                                        AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(videoPath, StandardOpenOption.READ);
-                                        ByteBuffer buffer = ByteBuffer.allocate(finalChunkSize);
-
-                                        fileChannel.read(buffer, finalStart, null, new CompletionHandler<Integer, Void>() {
-                                            @Override
-                                            public void completed(Integer bytesRead, Void attachment) {
-                                                try {
-                                                    if (bytesRead == -1) {
-                                                        sink.success(); // EOF 도달 (정상적인 청크 읽기에서는 발생하지 않아야 함)
-                                                    } else {
-                                                        buffer.flip();
-                                                        DataBuffer dataBuffer = dataBufferFactory.wrap(buffer);
-                                                        sink.success(dataBuffer);
-                                                    }
-                                                } finally {
-                                                    try {
-                                                        fileChannel.close();
-                                                    } catch (IOException ignored) {
-                                                    }
-                                                }
-                                            }
-
-                                            @Override
-                                            public void failed(Throwable exc, Void attachment) {
-                                                log.error("비디오 파일 청크 읽기 실패: {}", videoPath, exc);
-                                                sink.error(exc);
-                                                try {
-                                                    fileChannel.close();
-                                                } catch (IOException ignored) {
-                                                }
-                                            }
-                                        });
-                                    } catch (IOException e) {
-                                        log.error("비디오 파일 채널 열기 실패: {}", videoPath, e);
-                                        sink.error(e);
-                                    }
-                                });
-                                return Mono.just(new VideoMonoRecord(contentType, rangeResponse, contentLengthForChunk, videoDataMono));
-                            })
-                            .onErrorResume(IOException.class, e -> {
-                                log.error("비디오 청크 처리 중 IOException 발생. fileId: {}, path: {}: {}", fileId, videoPath, e.getMessage());
-                                return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "비디오 파일 읽기 중 오류 발생", e));
-                            });
-                })
-                .onErrorResume(ResponseStatusException.class, Mono::error) // 이미 ResponseStatusException인 경우 그대로 전파
-                .onErrorResume(e -> { // 그 외 예상치 못한 에러 처리
-                    log.error("getVideoChunk 처리 중 예상치 못한 오류 발생. fileId: {}: {}", fileId, e.getMessage(), e);
-                    return Mono.error(new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "비디오 청크를 가져오는 중 예상치 못한 오류 발생", e));
-                });
-    }
-
     public Mono<VideoMetaRecord> getVideoMeta(Long fileId, String rangeHeader) {
         return contentsFileRepository.findFileWithContentInfo(fileId)
                 .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "콘텐츠 파일 정보를 찾을 수 없습니다. ID: " + fileId)))
@@ -241,7 +132,7 @@ public class VideoService {
                 .onErrorResume(ResponseStatusException.class, Mono::error); // 이미 ResponseStatusException인 경우 그대로 전파
     }
 
-    public Flux<DataBuffer> getVideoDataBuffer(Path videoPath, long start, long end) {
+    public Flux<DataBuffer> getVideoDataBuffer(String subscriptionCode, Path videoPath, long start, long end) {
 
         // 실제 전송할 청크 크기
         long currentChunkSize = end - start + 1;
@@ -271,42 +162,6 @@ public class VideoService {
     }
 
 
-
-    public String getHlsOriginal(String videoPath) throws IOException {
-        List<List<String>> keyFrameStrings = ffmpegService.getVideoKeyFrame(videoPath);
-        log.info(keyFrameStrings.toString());
-        log.info(String.valueOf(keyFrameStrings.size()));
-        StringBuilder m3u8Builder = new StringBuilder();
-
-        m3u8Builder.append("#EXTM3U\n");
-        m3u8Builder.append("#EXT-X-VERSION:7\n");
-        m3u8Builder.append("#EXT-X-TARGETDURATION:20\n"); // 각 세그먼트 최대 길이 지정
-//        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:1\n\n");
-        m3u8Builder.append("#EXT-X-PLAYLIST-TYPE:VOD\n");
-        m3u8Builder.append("#EXT-X-MAP:URI=" + filerangeUrl + "?fn=" + videoPath + ".init.mp4\n\n");
-
-        Double prevTime = 0.0;
-        Double nowTime = 0.0;
-        Integer prevBytes = Integer.valueOf(keyFrameStrings.get(0).get(2));
-        Integer nowBytes = 0;
-        String duration;
-        for (List<String> keyFrame : keyFrameStrings) {
-            if (prevTime + 10 < (nowTime = Double.parseDouble(keyFrame.get(1)))) {
-                nowBytes = Integer.parseInt(keyFrame.get(2));
-                duration = new BigDecimal(nowTime - prevTime).setScale(2, RoundingMode.CEILING).toPlainString();
-                m3u8Builder.append("#EXTINF:" + duration + ",\n");
-                m3u8Builder.append(filerangeUrl + "?fn=" + videoPath + "&bytes=" + String.valueOf(prevBytes) + "-" + String.valueOf(nowBytes - 1) + "\n");
-                prevTime = nowTime;
-                prevBytes = nowBytes;
-            }
-        }
-        m3u8Builder.append("#EXTINF:10,\n");
-        m3u8Builder.append(filerangeUrl + "?fn=" + videoPath + "&bytes=" + String.valueOf(nowBytes) + "-\n");
-        m3u8Builder.append("\n");
-        m3u8Builder.append("#EXT-X-ENDLIST");
-
-        return m3u8Builder.toString();
-    }
 
     public Mono<String> getHlsM3u8(Long fileId, String type) {
         Path tempFile = Paths.get(tempHlsFolder, fileId + "." + type + ".hls.m3u8");
@@ -392,39 +247,6 @@ public class VideoService {
     }
 
 
-
-    public String getHlsM3u8Fmp4(String videoPath, String type) throws IOException {
-        Double videoDuration = ffmpegService.getVideoDuration(videoPath);
-
-        StringBuilder m3u8Builder = new StringBuilder();
-
-        m3u8Builder.append("#EXTM3U\n");
-        m3u8Builder.append("#EXT-X-VERSION:7\n");
-        m3u8Builder.append("#EXT-X-TARGETDURATION:10\n");
-        m3u8Builder.append("#EXT-X-PLAYLIST-TYPE:VOD\n");
-        m3u8Builder.append("#EXT-X-MEDIA-SEQUENCE:0\n");
-        m3u8Builder.append("#EXT-X-MAP:URI="+videoBaseUrl+hlsinitUrl+"?fn="+videoPath+"\n\n");
-//        m3u8Builder.append("#EXT-X-MAP:URI="+"filerange?fn=init2.mp4\n\n");
-
-        int nowTime = 0;
-        while (videoDuration > 0) {
-            if (videoDuration >= 10) {
-                m3u8Builder.append("#EXTINF:10,\n");
-                m3u8Builder.append(videoBaseUrl+hlsfmp4Url + "?fn=" + videoPath + "&ss=" + nowTime + "&to=" + (nowTime + 10) + "&type=" + type + "\n");
-            } else {
-                m3u8Builder.append("#EXTINF:" + videoDuration.toString() + "\n");
-                m3u8Builder.append(videoBaseUrl+hlsfmp4Url + "?fn=" + videoPath + "&ss=" + nowTime + "&to=" + (nowTime + videoDuration) + "&type=" + type + "\n");
-            }
-            nowTime += 10;
-            videoDuration -= 10;
-        }
-
-        m3u8Builder.append("\n");
-        m3u8Builder.append("#EXT-X-ENDLIST");
-
-        return m3u8Builder.toString();
-    }
-
     public Mono<String> getHlsM3u8Master(Long fileId) {
         log.info("getHlsM3u8Master, fileId=" + fileId);
         return contentsFileRepository.findFileWithContentInfo(fileId)
@@ -470,11 +292,6 @@ public class VideoService {
                         // ffmpegService 같은 블로킹 IO는 boundedElastic 스케줄러로 실행
                         .subscribeOn(Schedulers.boundedElastic())
                 );
-    }
-
-
-    public InputStreamResource getHlsInitData(String videoPath) throws IOException {
-        return ffmpegService.getInitData(videoPath);
     }
 
 
@@ -621,11 +438,6 @@ public class VideoService {
                                 }
                             });
                 });
-    }
-
-    public InputStreamResource getHlsFmp4(String videoPath, String start, String end, String type) throws IOException {
-        log.info("filename="+videoPath+",start="+start+",end="+end+",type="+type);
-        return ffmpegService.getFmp4Data(videoPath, start, end, type);
     }
 
     public Flux<PlayListRecord> getVideoPlayList(Long fileId){

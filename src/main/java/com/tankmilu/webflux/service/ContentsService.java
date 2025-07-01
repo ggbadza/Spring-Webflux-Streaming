@@ -7,10 +7,7 @@ import com.tankmilu.webflux.es.document.ContentsObjectDocument;
 import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
 import com.tankmilu.webflux.exception.ContentsNotFoundException;
 import com.tankmilu.webflux.record.*;
-import com.tankmilu.webflux.repository.ContentsFileRepository;
-import com.tankmilu.webflux.repository.ContentsObjectRepository;
-import com.tankmilu.webflux.repository.UserContentsFollowingRepository;
-import com.tankmilu.webflux.repository.UserContentsRecommendRepository;
+import com.tankmilu.webflux.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -32,6 +29,7 @@ public class ContentsService {
     private final UserContentsRecommendRepository userContentsRecommendRepository;
     private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
     private final UserContentsFollowingRepository userContentsFollowingRepository;
+    private final FeaturedBannersRepository featuredBannersRepository;
 
     public Mono<ContentsResponse> getContentsInfo(Long contentsId) {
         return contentsObjectRepository.findById(contentsId)
@@ -235,6 +233,11 @@ public class ContentsService {
 
     public Mono<Boolean> isFollowingContent(String userId, Long contentsId){
         return userContentsFollowingRepository.existsByUserIdAndContentsId(userId, contentsId);
+    }
+
+    public Flux<FeaturedBannersResponse> getFeaturedBanners(){
+        return featuredBannersRepository.findAllByOrderBySequenceIdAsc()
+                .map(FeaturedBannersResponse::fromEntity); // FeaturedBannersResponse로 맵핑 메소드 참조
     }
 
 }

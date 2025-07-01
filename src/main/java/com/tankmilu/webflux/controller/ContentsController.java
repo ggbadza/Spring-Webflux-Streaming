@@ -141,10 +141,11 @@ public class ContentsController {
     }
 
     /**
-     * 즐겨찾기한 컨텐츠를 가져옵니다.
+     * 해당 컨텐츠가 즐겨찾기 목록에 팔로잉한 컨텐츠 유무를 체크합니다.
      *
      * @param userDetails 유저 계정 정보
-     * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
+     * @param contentsId 체크 할 컨텐츠 Id
+     * @return Boolean 컨텐츠 팔로잉 유무
      */
     @RequestMapping(value = "${app.contents.urls.is_following}", method = {RequestMethod.GET, RequestMethod.POST})
     public Mono<Boolean> isFollowingByContentsId(
@@ -153,5 +154,16 @@ public class ContentsController {
         return contentsService.isFollowingContent(userDetails.getUsername(), contentsId);
     }
 
+    /**
+     *  배너용 컨텐츠들을 가져옵니다
+     *
+     * @param userDetails 유저 계정 정보
+     * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
+     */
+    @RequestMapping(value = "${app.contents.urls.is_following}", method = {RequestMethod.GET, RequestMethod.POST})
+    public Flux<FeaturedBannersResponse> getFeaturedBanners(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return contentsService.getFeaturedBanners();
+    }
 
 }
