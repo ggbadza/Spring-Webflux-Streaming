@@ -40,7 +40,7 @@ public interface ContentsObjectRepository extends R2dbcRepository<ContentsObject
             ) c ON h.folder_id = c.parent_folder_id
         )
         
-        SELECT b.contents_id, b.title, b.description, b.`type`, b.folder_id, b.release_ym, b.thumbnail_url, b.created_at, b.modified_at, b.poster_url
+        SELECT b.contents_id, b.title, b.description, b.`type`, b.folder_id, b.release_ym, b.thumbnail_url, b.created_at, b.modified_at, b.poster_url, b.subscription_code, b.series_id, b.season
         FROM folder_hierarchy a, contents_object_entity b
         WHERE a.has_files = 1
         and b.`type`  = :type
