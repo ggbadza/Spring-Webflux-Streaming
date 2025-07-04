@@ -160,7 +160,7 @@ public class ContentsController {
      * @param userDetails 유저 계정 정보
      * @return ContentsResponse 즐겨찾기 한 컨텐츠 정보
      */
-    @RequestMapping(value = "${app.contents.urls.is_following}", method = {RequestMethod.GET, RequestMethod.POST})
+    @RequestMapping(value = "${app.contents.urls.get_featured_banners}", method = {RequestMethod.GET, RequestMethod.POST})
     public Flux<FeaturedBannersResponse> getFeaturedBanners(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return contentsService.getFeaturedBanners();
