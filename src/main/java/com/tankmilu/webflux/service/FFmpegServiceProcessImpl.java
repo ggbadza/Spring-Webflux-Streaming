@@ -264,13 +264,13 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                             262144
                     ))
                     .doFinally(signalType -> { // 모든 작업 완료/실패 후 임시 파일 2개 모두 삭제
-//                        try {
-//                            Files.deleteIfExists(intermediateFile1);
-//                            Files.deleteIfExists(intermediateFile2);
-//                            log.info("임시 파일 삭제 완료: {}, {}", intermediateFile1.getFileName(), intermediateFile2.getFileName());
-//                        } catch (IOException e) {
-//                            log.error("임시 파일 삭제 실패", e);
-//                        }
+                        try {
+                            Files.deleteIfExists(intermediateFile1);
+                            Files.deleteIfExists(intermediateFile2);
+                            log.info("임시 파일 삭제 완료: {}, {}", intermediateFile1.getFileName(), intermediateFile2.getFileName());
+                        } catch (IOException e) {
+                            log.error("임시 파일 삭제 실패", e);
+                        }
                     });
         });
     }

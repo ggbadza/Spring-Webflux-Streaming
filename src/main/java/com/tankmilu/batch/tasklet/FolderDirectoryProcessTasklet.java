@@ -190,11 +190,14 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
         );
     }
 
-    // 해당 경로에 비디오 파일이 존재하는지 체크
+    // 해당 경로에 비디오 파일이 존재하는지 체크 or 폴더가 마지막 노드인지 체크
     private boolean hasFiles(Path dir) {
+        boolean hasSubDirectories = false; // 하위 디렉토리 존재 여부
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
             for (Path path : stream) {
-                if (Files.isRegularFile(path)) {
+                if (Files.isDirectory(path)) {
+                    hasSubDirectories = true;
+                } else if (Files.isRegularFile(path)) {
                     String fileName = path.getFileName().toString();
                     // 정보 파일이 아니면서 동영상 파일인 경우
                     if (!fileName.equals("_folder_info.json")
@@ -204,9 +207,9 @@ public class FolderDirectoryProcessTasklet<T extends FolderTreeEntity> implement
                 }
             }
         } catch (IOException ignored) {
-            // 예외 발생 시 false 반환
+            return false;
         }
-        return false;
+        return !hasSubDirectories;
     }
 
     // Entity 객체와 디렉토리 상태 비교 및 업데이트

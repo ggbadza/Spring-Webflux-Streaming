@@ -72,7 +72,7 @@ public class ContentsFileSaveTasklet implements Tasklet {
             if (!filesToUpdate.isEmpty()) {
                 operations = operations.then(fileRepository.saveAll(filesToUpdate).then());
                 log.info("수정 파일 엔티티 등록 완료");
-            }
+            } 
 
             // 3. 삭제 엔티티 처리
             if (!filesToDelete.isEmpty()) {

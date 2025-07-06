@@ -13,6 +13,7 @@ import com.tankmilu.webflux.repository.folder.DramaFolderTreeRepository;
 import com.tankmilu.webflux.repository.folder.MovieFolderTreeRepository;
 import com.tankmilu.webflux.service.FFmpegService;
 import com.tankmilu.webflux.service.FFmpegServiceProcessImpl;
+import com.tankmilu.webflux.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
@@ -51,6 +52,7 @@ public class ContentsUpdateConfig {
     private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
 
     private final FFmpegServiceProcessImpl fFmpegService;
+    private final VideoService videoService;
 
     // Job 1: FolderTree -> ContentsObject 업데이트 작업
     @Bean
@@ -123,9 +125,9 @@ public class ContentsUpdateConfig {
             @Value("#{jobParameters['type']}") String type,
             @Value("#{jobParameters['folderId']}") Long folderId) {
         return switch (type) {
-            case "anime" -> new ContentsToFileUpdateTasklet<>(animationFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
-            case "movie" -> new ContentsToFileUpdateTasklet<>(movieFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
-            case "drama" -> new ContentsToFileUpdateTasklet<>(dramaFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService);
+            case "anime" -> new ContentsToFileUpdateTasklet<>(animationFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService, videoService);
+            case "movie" -> new ContentsToFileUpdateTasklet<>(movieFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService, videoService);
+            case "drama" -> new ContentsToFileUpdateTasklet<>(dramaFolderTreeRepository, contentsObjectRepository, contentsFileRepository, type, folderId, fFmpegService, videoService);
             default -> throw new IllegalArgumentException("컨텐츠 타입 에러: " + type + " 타입이 다음 타입과 같은지 확인해주세요. 'anime', 'movie', 'drama'.");
         };
     }

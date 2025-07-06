@@ -210,11 +210,12 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
             operations=operations.then(contentsRepository.saveAll(contentsToSave).then());
             log.info("콘텐츠 엔티티 저장 작업 등록 완료");
         }
-
-        if (!contentsToDelete.isEmpty()) {
-            operations=operations.then(contentsRepository.deleteAll(contentsToDelete).then());
-            log.info("콘텐츠 엔티티 삭제 작업 등록 완료");
-        }
+        
+        // 콘텐츠 삭제는 수동 처리
+//        if (!contentsToDelete.isEmpty()) {
+//            operations=operations.then(contentsRepository.deleteAll(contentsToDelete).then());
+//            log.info("콘텐츠 엔티티 삭제 작업 등록 완료");
+//        }
         operations
                 .as(transactionalOperator::transactional)
                 .doOnSuccess(v -> log.info("트랜잭션 처리 완료"))

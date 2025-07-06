@@ -64,12 +64,6 @@ public class VideoService {
     @Value("${app.video.urls.hlsm3u8}")
     public String hlsm3u8Url;
 
-    @Value("${app.video.urls.hlsinit}")
-    public String hlsinitUrl;
-
-    @Value("${app.video.urls.hlsfmp4}")
-    public String hlsfmp4Url;
-
     @Value("${custom.batch.subtitle_folder}")
     private String tempSubtitleFolder;
 
@@ -528,5 +522,123 @@ public class VideoService {
         playListRecords.add(record);
         return playListRecords;
     }
+
+    public Mono<Boolean> buildM3u8Content(Long fileId, Path videoPath) {
+        return Mono.fromCallable(() -> {
+            List<List<String>> keyFrameStrings = ffmpegService.getVideoKeyFrame(videoPath.toString());
+            double videoDuration = ffmpegService.getVideoDuration(videoPath.toString());
+
+            // 정의된 모든 해상도(enum)에 대해 반복
+            for (VideoResolutionEnum resolution : VideoResolutionEnum.values()) {
+                String type = resolution.getType();
+
+                StringBuilder m3u8Builder;
+                final int SEGMENT_LENGTH = 10;
+                BigDecimal prevFrame = new BigDecimal("0.0");
+                BigDecimal nowFrame = new BigDecimal("0.0");
+                BigDecimal segmentLengthBD = new BigDecimal(SEGMENT_LENGTH);
+                BigDecimal duration;
+
+                try {
+                    // 각 해상도 타입에 맞는 M3U8 파일 내용을 생성.
+                    m3u8Builder = new StringBuilder()
+                            .append("#EXTM3U\n")
+                            .append("#EXT-X-VERSION:7\n")
+                            .append("#EXT-X-TARGETDURATION:10\n")
+                            .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
+                            .append("#EXT-X-MEDIA-SEQUENCE:0\n");
+
+                    // 각 키프레임을 순회하며 세그먼트를 나눕니다.
+                    for (List<String> keyFrames : keyFrameStrings) {
+                        nowFrame = new BigDecimal(keyFrames.get(1));
+                        if (nowFrame.compareTo(prevFrame.add(segmentLengthBD)) >= 0) {
+                            duration = nowFrame.subtract(prevFrame);
+
+                            m3u8Builder.append("#EXTINF:")
+                                    .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
+                                    .append(videoBaseUrl).append(hlstsUrl)
+                                    .append("?fileId=").append(fileId)
+                                    .append("&ss=").append(prevFrame.toPlainString())
+                                    .append("&to=").append(nowFrame.toPlainString())
+                                    .append("&type=").append(type) // 현재 해상도 타입 적용
+                                    .append('\n');
+                            prevFrame = nowFrame;
+                        }
+                    }
+                    // 마지막 남은 세그먼트를 처리
+                    if (nowFrame.compareTo(prevFrame) > 0) {
+                        duration = nowFrame.subtract(prevFrame);
+
+                        m3u8Builder.append("#EXTINF:")
+                                .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
+                                .append(videoBaseUrl).append(hlstsUrl)
+                                .append("?fileId=").append(fileId)
+                                .append("&ss=").append(prevFrame.toPlainString())
+                                .append("&to=").append(nowFrame.toPlainString())
+                                .append("&type=").append(type) // 현재 해상도 타입 적용
+                                .append('\n');
+                    }
+                    m3u8Builder.append("#EXT-X-ENDLIST");
+
+                } catch (Exception e){ // 키프레임 에러 시 10초 단위로 나누도록 설정
+                    // 각 해상도 타입에 맞는 M3U8 파일 내용을 생성.
+                    m3u8Builder = new StringBuilder()
+                            .append("#EXTM3U\n")
+                            .append("#EXT-X-VERSION:7\n")
+                            .append("#EXT-X-TARGETDURATION:10\n")
+                            .append("#EXT-X-PLAYLIST-TYPE:VOD\n")
+                            .append("#EXT-X-MEDIA-SEQUENCE:0\n");
+
+                    duration = new BigDecimal(videoDuration);
+                    nowFrame = nowFrame.add(segmentLengthBD);
+
+                    while(nowFrame.compareTo(duration)<0){
+                        m3u8Builder.append("#EXTINF:")
+                                .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
+                                .append(videoBaseUrl).append(hlstsUrl)
+                                .append("?fileId=").append(fileId)
+                                .append("&ss=").append(prevFrame.toPlainString())
+                                .append("&to=").append(nowFrame.toPlainString())
+                                .append("&type=").append(type) // 현재 해상도 타입 적용
+                                .append('\n');
+                        prevFrame=nowFrame;
+                        nowFrame=nowFrame.add(segmentLengthBD);
+                    }
+                    m3u8Builder.append("#EXTINF:")
+                            .append(duration.setScale(6, RoundingMode.HALF_UP).toPlainString()).append(",\n")
+                            .append(videoBaseUrl).append(hlstsUrl)
+                            .append("?fileId=").append(fileId)
+                            .append("&ss=").append(prevFrame.toPlainString())
+                            .append("&to=").append(duration.toPlainString())
+                            .append("&type=").append(type) // 현재 해상도 타입 적용
+                            .append('\n');
+                    m3u8Builder.append("#EXT-X-ENDLIST");
+
+                }
+
+
+
+                // 해상도별 M3U8 파일을 저장.
+                Path tempFile = Paths.get(tempHlsFolder, fileId + "." + type + ".hls.m3u8");
+
+                // 상위 디렉토리가 없으면 생성합니다.
+                try {
+                    Files.createDirectories(tempFile.getParent());
+                    Files.writeString(tempFile, m3u8Builder.toString(), StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING);
+                } catch (IOException e) {
+                    log.error("Error M3U8 파일 생성 실패 {}: {}", tempFile, e.getMessage());
+                    return false;
+                }
+            }
+
+            // 5. 모든 작업이 예외 없이 완료되면 true를 반환합니다.
+            return true;
+        }).doOnError(error -> {
+            // 에러 발생 시 로그를 남길 수 있습니다.
+            System.err.println("M3U8 파일 생성 중 오류 발생: " + error.getMessage());
+        });
+    }
+
 
 }

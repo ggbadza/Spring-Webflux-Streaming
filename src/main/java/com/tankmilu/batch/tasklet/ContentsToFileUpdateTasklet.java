@@ -9,6 +9,7 @@ import com.tankmilu.webflux.repository.ContentsFileRepository;
 import com.tankmilu.webflux.repository.ContentsObjectRepository;
 import com.tankmilu.webflux.repository.folder.FolderTreeRepository;
 import com.tankmilu.webflux.service.FFmpegServiceProcessImpl;
+import com.tankmilu.webflux.service.VideoService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import reactor.core.publisher.Mono;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -43,6 +45,7 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
     private final Long folderId;
 
     private final FFmpegServiceProcessImpl fFmpegServiceProcess;
+    private final VideoService videoService;
     
     // 배치 결과를 저장할 리스트 생성
     private final List<ContentsFileEntity> filesToInsert = new ArrayList<>();
@@ -53,6 +56,8 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
 
     @Value("${custom.batch.subtitle_folder}")
     private String tempSubtitleFolder;
+    @Value("${custom.batch.hls_folder}")
+    private String tempHlsFolder;
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
@@ -224,6 +229,23 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         InsertOrUpdateFiles.add(existingEntry.getValue());
                     }
                 }
+                // 삭제 처리 예정
+
+                // m3u8 파일 미존재시 생성
+                Path tempFile = Paths.get(tempHlsFolder, existingEntry.getValue().getFileId() + ".0.hls.m3u8");
+                if (!Files.exists(tempFile)) {
+                    Path videoFile = Paths.get(folderPath, existingEntry.getValue().getFilePath());
+                    try {
+                        if (Boolean.TRUE.equals(videoService.buildM3u8Content(existingEntry.getValue().getFileId(), videoFile).block())) {
+                            log.info("m3u8 파일 생성 완료: {}", videoFile);
+                        } else {
+                            log.warn("m3u8 파일 생성 실패!!!!!!!!!!!!: {}", videoFile);
+                        }
+                    } catch (Exception e){
+                        log.warn("m3u8 파일 생성 실패!!!!!!!!!!!!: {}, {}", videoFile, e.getMessage());
+                    }
+                }
+                // 삭제 처리 예정
             }
             boolean isContentsUpdated = false;
             // 4-3. filteredFiles 를 이용해서
@@ -305,6 +327,18 @@ public class ContentsToFileUpdateTasklet<T extends FolderTreeEntity> implements 
                         }
                     }
                 }
+
+                // m3u8 파일 미존재시 생성
+                Path tempFile = Paths.get(tempHlsFolder, entity.getFileId() + ".0.hls.m3u8");
+                if (!Files.exists(tempFile)) {
+                    Path videoFile = Paths.get(folderPath, entity.getFilePath());
+                    if(Boolean.TRUE.equals(videoService.buildM3u8Content(entity.getFileId(), videoFile).block())){
+                        log.info("m3u8 파일 생성 완료: {}",videoFile);
+                    } else {
+                        log.warn("m3u8 파일 생성 실패!!!!!!!!!!!!: {}",videoFile);
+                    }
+                }
+
             }
         }
         
