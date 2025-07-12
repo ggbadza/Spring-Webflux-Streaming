@@ -1,0 +1,16 @@
+curl -X PUT "http://localhost:9200/_component_template/contents_settings_template?pretty" -H 'Content-Type: application/json' -d'
+{
+  "template": {
+    "settings": {
+      "analysis": {
+        "analyzer": {
+          "korean": {
+            "type": "custom",
+            "tokenizer": "nori_tokenizer"
+          }
+        }
+      }
+    }
+  }
+}
+'
