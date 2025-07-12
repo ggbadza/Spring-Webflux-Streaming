@@ -50,67 +50,207 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 ## API 명세서
 
+<details>
+<summary>응답 객체 상세 정보</summary>
+
+- **UserRegResponse**:
+  ```json
+  {
+    "userId": "string",
+    "userName": "string",
+    "regCode": "string",
+    "msg": "string"
+  }
+  ```
+- **PlayListRecord**:
+  ```json
+  {
+    "videoType": "string",
+    "url": "string",
+    "pixel": "string",
+    "fileId": "long",
+    "mimeType": "string"
+  }
+  ```
+- **SubtitleMetadataResponse**:
+  ```json
+  {
+    "hasSubtitle": "string",
+    "count": "int",
+    "subtitleList": [
+      {
+        "subtitleId": "string",
+        "language": "string"
+      }
+    ]
+  }
+  ```
+- **ContentsResponse**:
+  ```json
+  {
+    "contentsId": "long",
+    "title": "string",
+    "description": "string",
+    "thumbnailUrl": "string",
+    "posterUrl": "string",
+    "type": "string",
+    "folderId": "long"
+  }
+  ```
+- **RecommendContentsResponse**:
+  ```json
+  {
+    "userId": "string",
+    "recommendSeq": "int",
+    "description": "string",
+    "contentsResponseList": [
+      "ContentsResponse"
+    ]
+  }
+  ```
+- **FileInfoSummaryResponse**:
+  ```json
+  {
+    "id": "long",
+    "fileName": "string",
+    "contentsId": "long",
+    "hasSubtitle": "boolean",
+    "resolution": "string",
+    "createdAt": "date-time"
+  }
+  ```
+- **ContentsInfoWithFilesResponse**:
+  ```json
+  {
+    "contentsId": "long",
+    "title": "string",
+    "description": "string",
+    "thumbnailUrl": "string",
+    "posterUrl": "string",
+    "type": "string",
+    "filesInfoList": [
+      "FileInfoSummaryResponse"
+    ]
+  }
+  ```
+- **ContentsSearchResponse**:
+  ```json
+  {
+    "contentsId": "long",
+    "title": "string",
+    "description": "string",
+    "type": "string",
+    "thumbnailUrl": "string",
+    "modifiedAt": "date-time"
+  }
+  ```
+- **FeaturedBannersResponse**:
+  ```json
+  {
+    "sequenceId": "long",
+    "contentsId": "long",
+    "title": "string",
+    "description": "string",
+    "type": "string",
+    "userRating": "number",
+    "posterUrl": "string",
+    "thumbnailUrl": "string",
+    "seriesId": "string",
+    "season": "string"
+  }
+  ```
+- **DirectoryRecord**:
+  ```json
+  {
+    "folderId": "long",
+    "name": "string",
+    "hasFiles": "boolean",
+    "contentsId": "long"
+  }
+  ```
+- **VideoFileRecord**:
+  ```json
+  {
+    "pId": "long",
+    "fileName": "string",
+    "videoPath": "string",
+    "subtitlePath": "string",
+    "resolution": "string"
+  }
+  ```
+- **배치 API 응답**:
+  ```json
+  {
+    "jobId": "long",
+    "status": "string",
+    "startTime": "date-time"
+  }
+  ```
+
+</details>
+
 ### 사용자 API
 
-| HTTP Method | URL                                   | 설명                     | 요청 본문 (Request Body)      | 응답 (Response)                                                              |
-|-------------|---------------------------------------|--------------------------|-------------------------------|------------------------------------------------------------------------------|
-| POST        | `/api/users/register`                 | 회원가입                 | `UserRegRequest`              | `UserRegResponse`                                                            |
-| POST        | `/api/users/login`                    | 로그인                   | `LoginRequestRecord`          | `ResponseEntity<Boolean>` <br/>(JWT 토큰은 쿠키에 담겨 반환)                       |
-| GET, POST   | `/api/users/reissue`                  | 액세스 토큰 재발급       | -                             | `ResponseEntity<Boolean>` <br/>(JWT 토큰은 쿠키에 담겨 반환)                       |
-| GET, POST   | `/api/users/me`                       | 내 정보 조회             | -                             | `UserRegResponse`                                                            |
-| GET, POST   | `/api/users/logout`                   | 로그아웃                 | -                             | `ResponseEntity<Boolean>`                                                    |
+| HTTP Method | URL | 설명 | 요청 본문 (Request Body) | 응답 (Response) |
+|---|---|---|---|---|
+| POST | `/api/users/register` | 회원가입 | `UserRegRequest` | `UserRegResponse` |
+| POST | `/api/users/login` | 로그인 | `LoginRequestRecord` | `boolean` <br/>(JWT 토큰은 쿠키에 담겨 반환) |
+| GET, POST | `/api/users/reissue` | 액세스 토큰 재발급 | - | `boolean` <br/>(JWT 토큰은 쿠키에 담겨 반환) |
+| GET, POST | `/api/users/me` | 내 정보 조회 | - | `UserRegResponse` |
+| GET, POST | `/api/users/logout` | 로그아웃 | - | `boolean` |
 
 ### 비디오 API
 
-| HTTP Method | URL                                   | 설명                           | 요청 파라미터 (Request Parameters)                               | 응답 (Response)                                                              |
-|-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
-| GET         | `/video/test`                         | API 연결 테스트                | -                                                                | `String`                                                                     |
-| GET         | `/video/file-range`                   | 비디오 스트리밍 (Range 요청)   | `fileId` (Long)                                                  | `Mono<Void>` <br/>(비디오 데이터 스트림)                                          |
-| GET         | `/video/hls.m3u8`                     | HLS m3u8 플레이리스트 제공     | `fileId` (Long), <br/>`type` (String, optional, default: "0")         | `ResponseEntity<String>`                                                     |
-| GET         | `/video/hls.m3u8.master`              | HLS 마스터 플레이리스트 제공   | `fileId` (Long)                                                  | `ResponseEntity<String>`                                                     |
-| GET         | `/video/playlist`                     | 커스텀 비디오 플레이리스트 제공| `fileId` (Long)                                                  | `Flux<PlayListRecord>`                                                       |
-| GET         | `/video/hls.ts`                       | HLS TS 세그먼트 제공           | `fileId` (Long), <br/>`ss` (String), <br/>`to` (String),<br/> `type` (String, optional, default: "0") | `Flux<DataBuffer>` <br/>(TS 데이터 스트림)                                        |
-| GET         | `/video/subtitle`                     | 자막 파일 제공                 | `fileId` (Long), <br/>`type` (String, optional, default: "f")         | `Flux<DataBuffer>` <br/>(자막 데이터 스트림)                                      |
-| GET         | `/video/subtitle-metadata`            | 자막 메타데이터 제공           | `fileId` (Long)                                                  | `Mono<SubtitleMetadataResponse>`                                             |
+| HTTP Method | URL | 설명 | 요청 파라미터 (Request Parameters) | 응답 (Response) |
+|---|---|---|---|---|
+| GET | `/video/test` | API 연결 테스트 | - | `string` |
+| GET | `/video/file-range` | 비디오 스트리밍 (Range 요청) | `fileId` (Long) | 비디오 데이터 스트림 |
+| GET | `/video/hls.m3u8` | HLS m3u8 플레이리스트 제공 | `fileId` (Long), <br/>`type` (String, optional, default: "0") | `string` (m3u8 플레이리스트) |
+| GET | `/video/hls.m3u8.master` | HLS 마스터 플레이리스트 제공 | `fileId` (Long) | `string` (m3u8 마스터 플레이리스트) |
+| GET | `/video/playlist` | 커스텀 비디오 플레이리스트 제공| `fileId` (Long) | `List<PlayListRecord>` |
+| GET | `/video/hls.ts` | HLS TS 세그먼트 제공 | `fileId` (Long), <br/>`ss` (String), <br/>`to` (String),<br/> `type` (String, optional, default: "0") | TS 데이터 스트림 |
+| GET | `/video/subtitle` | 자막 파일 제공 | `fileId` (Long), <br/>`type` (String, optional, default: "f") | 자막 데이터 스트림 |
+| GET | `/video/subtitle-metadata` | 자막 메타데이터 제공 | `fileId` (Long) | `SubtitleMetadataResponse` |
 
 ### 콘텐츠 API
 
-| HTTP Method | URL                                   | 설명                           | 요청 파라미터/본문                                               | 응답 (Response)                                                              |
-|-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
-| GET         | `/api/contents/info`                  | 콘텐츠 상세 정보 조회          | `contentsId` (Long)                                              | `Mono<ContentsResponse>`                                                     |
-| POST        | `/api/contents/info-recently`         | 최근 변경된 콘텐츠 목록 조회   | `type` (String), <br/>`pid` (Long)                                    | `Flux<ContentsResponse>`                                                     |
-| GET         | `/api/contents/recommend`             | 추천 콘텐츠 목록 조회          | -                                                                | `Flux<RecommendContentsResponse>`                                            |
-| GET         | `/api/contents/files`                 | 콘텐츠 파일 목록 조회          | `contentsId` (Long)                                              | `Flux<FileInfoSummaryResponse>`                                              |
-| GET         | `/api/contents/contents-info-with-video-files` | 콘텐츠 정보 및 비디오 파일 목록 조회 | `fileId` (Long)                                                  | `Mono<ContentsInfoWithFilesResponse>`                                        |
-| POST        | `/api/contents/search`                | 키워드로 콘텐츠 검색           | `ContentsSearchRequest`                                          | `Flux<ContentsSearchResponse>`                                               |
-| GET, POST   | `/api/contents/register-following`    | 즐겨찾기 추가                  | `contentsId` (Long)                                              | `Mono<Boolean>`                                                              |
-| GET, POST   | `/api/contents/delete-following`      | 즐겨찾기 삭제                  | `contentsId` (Long)                                              | `Mono<Boolean>`                                                              |
-| GET         | `/api/contents/get-following`         | 즐겨찾기 목록 조회             | -                                                                | `Flux<ContentsResponse>`                                                     |
-| GET, POST   | `/api/contents/is-following`          | 즐겨찾기 여부 확인             | `contentsId` (Long)                                              | `Mono<Boolean>`                                                              |
+| HTTP Method | URL | 설명 | 요청 파라미터/본문 | 응답 (Response) |
+|---|---|---|---|---|
+| GET | `/api/contents/info` | 콘텐츠 상세 정보 조회 | `contentsId` (Long) | `ContentsResponse` |
+| POST | `/api/contents/info-recently` | 최근 변경된 콘텐츠 목록 조회 | `type` (String), <br/>`pid` (Long) | `List<ContentsResponse>` |
+| GET | `/api/contents/recommend` | 추천 콘텐츠 목록 조회 | - | `List<RecommendContentsResponse>` |
+| GET | `/api/contents/files` | 콘텐츠 파일 목록 조회 | `contentsId` (Long) | `List<FileInfoSummaryResponse>` |
+| GET | `/api/contents/contents-info-with-video-files` | 콘텐츠 정보 및 비디오 파일 목록 조회 | `fileId` (Long) | `ContentsInfoWithFilesResponse` |
+| POST | `/api/contents/search` | 키워드로 콘텐츠 검색 | `ContentsSearchRequest` | `List<ContentsSearchResponse>` |
+| GET, POST | `/api/contents/register-following` | 즐겨찾기 추가 | `contentsId` (Long) | `boolean` |
+| GET, POST | `/api/contents/delete-following` | 즐겨찾기 삭제 | `contentsId` (Long) | `boolean` |
+| GET | `/api/contents/get-following` | 즐겨찾기 목록 조회 | - | `List<ContentsResponse>` |
+| GET, POST | `/api/contents/is-following` | 즐겨찾기 여부 확인 | `contentsId` (Long) | `boolean` |
+| GET, POST | `/api/contents/get-featured-banners` | 배너용 콘텐츠 목록 조회 | - | `List<FeaturedBannersResponse>` |
 
 ### 파일 시스템 API
 
-| HTTP Method | URL                                   | 설명                           | 요청 파라미터 (Request Parameters)                               | 응답 (Response)                                                              |
-|-------------|---------------------------------------|--------------------------------|------------------------------------------------------------------|------------------------------------------------------------------------------|
-| GET         | `/api/filesystem/files`               | 디렉토리 내 파일/폴더 목록 조회| `type` (String), <br/>`folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
-| GET         | `/api/filesystem/folders`             | 디렉토리 내 폴더 목록 조회     | `type` (String), <br/>`folderId` (Long, optional, default: 1)         | `Mono<List<DirectoryRecord>>`                                                |
-| POST        | `/api/filesystem/video-info`          | 비디오 파일 정보 조회          | `type` (String), <br/>`pid` (Long, optional, default: 0), `fn` (String) | `Mono<VideoFileRecord>`                                                      |
+| HTTP Method | URL | 설명 | 요청 파라미터 (Request Parameters) | 응답 (Response) |
+|---|---|---|---|---|
+| GET | `/api/filesystem/files` | 디렉토리 내 파일/폴더 목록 조회| `type` (String), <br/>`folderId` (Long, optional, default: 1) | `List<DirectoryRecord>` |
+| GET | `/api/filesystem/folders` | 디렉토리 내 폴더 목록 조회 | `type` (String), <br/>`folderId` (Long, optional, default: 1) | `List<DirectoryRecord>` |
+| POST | `/api/filesystem/video-info` | 비디오 파일 정보 조회 | `type` (String), <br/>`pid` (Long, optional, default: 0), `fn` (String) | `VideoFileRecord` |
 
 ### 배치 API
 
-| HTTP Method | URL                                   | 설명                                   | 요청 본문 (Request Body)              | 응답 (Response) |
-|-------------|---------------------------------------|----------------------------------------|---------------------------------------|---------------|
-| POST        | `/api/batch/folder-sync`              | 폴더 구조 동기화 배치 실행             | `FolderSyncBatchRequest`              | -             |
-| POST        | `/api/batch/folder-to-contents`       | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest`        | -             |
-| POST        | `/api/batch/contents-to-file`         | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest`          | -             |
-| GET         | `/api/batch/jobs`                     | 배치 작업 실행 내역 조회               | -                                     | -             |
-| GET         | `/api/batch/status/{jobId}`           | 특정 배치 작업 상태 조회               | -                                     | -             |
-| GET         | `/api/batch/stop/{jobExecutionId}`    | 실행 중인 배치 작업 중지               | -                                     | -             |
-| GET         | `/api/batch/restart/{jobExecutionId}` | 실패한 배치 작업 재시작                | -                                     | -             |
+| HTTP Method | URL | 설명 | 요청 본문 (Request Body) | 응답 (Response) |
+|---|---|---|---|---|
+| POST | `/api/batch/folder-sync` | 폴더 구조 동기화 배치 실행 | `FolderSyncBatchRequest` | `Map<String, Object>` |
+| POST | `/api/batch/folder-to-contents` | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest` | `Map<String, Object>` |
+| POST | `/api/batch/contents-to-file` | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest` | `Map<String, Object>` |
+| GET | `/api/batch/jobs` | 배치 작업 실행 내역 조회 | - | `List<Map<String, Object>>` |
+| GET | `/api/batch/status/{jobId}` | 특정 배치 작업 상태 조회 | - | `Map<String, Object>` |
+| GET | `/api/batch/stop/{jobExecutionId}` | 실행 중인 배치 작업 중지 | - | `Map<String, Object>` |
+| GET | `/api/batch/restart/{jobExecutionId}` | 실패한 배치 작업 재시작 | - | `Map<String, Object>` |
 
 ## 프로젝트 구조
 
-```
+'''
 .
 ├── src
 │   ├── main
@@ -131,4 +271,4 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 │   │       └── static
 │   └── test
 └── build.gradle
-```
+'''
