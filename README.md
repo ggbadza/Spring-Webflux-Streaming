@@ -25,6 +25,9 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 *   **Build Tool**: `Gradle`
 *   **Others**: `JWT`, `FFmpeg`
 
+## ERD
+![ERD](ERD.png)
+
 ## 실행 방법
 
 ### 요구 사항
