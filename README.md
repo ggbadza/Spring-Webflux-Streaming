@@ -250,7 +250,7 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 ## 프로젝트 구조
 
-'''
+```
 .
 ├── src
 │   ├── main
@@ -271,4 +271,4 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 │   │       └── static
 │   └── test
 └── build.gradle
-'''
+```
