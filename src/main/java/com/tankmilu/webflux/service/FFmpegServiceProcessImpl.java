@@ -117,6 +117,7 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
     @Override
     public List<List<String>> getVideoKeyFrame(String videoPath) throws IOException {
+        Process process = null;
         try {
             // 비디오 파일 경로
 //            String videoPath = new ClassPathResource("video/" + filename).getFile().getPath();
@@ -130,14 +131,21 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                     "-of", "csv",
                     videoPath
             );
-            InputStream inputStream = executeCommand(processBuilder);
-
-            // 프로세스 출력
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            process = processBuilder.start();
             StringBuilder output = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append("\n");
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                }
+            }
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                // 프로세스가 오류 코드를 반환한 경우 예외 발생
+                log.error("FFprobe process exited with error code: {}", exitCode);
+                log.error("FFprobe output:\n{}", output); // 오류 출력을 확인하기 위해 로그 추가
+                throw new IOException("FFprobe execution failed with exit code " + exitCode);
             }
 
             // 종료 코드 확인
@@ -145,6 +153,11 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
         } catch (Exception e) {
             log.error("FFprobe 에러: {}", e.getMessage(), e);
             throw new IOException("FFprobe 실행 에러", e);
+        } finally {
+            // finally 블록에서 프로세스가 항상 종료되도록 보장
+            if (process != null) {
+                process.destroy();
+            }
         }
     }
 

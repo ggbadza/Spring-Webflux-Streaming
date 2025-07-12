@@ -173,9 +173,7 @@ public class BatchJobController {
                     .addDate("time", new Date());  // 매번 고유한 파라미터를 위해 현재 시간 추가
                 
                 // folderId가 있으면 추가
-                if (folderId != null) {
-                    paramsBuilder.addLong("folderId", folderId);
-                }
+                paramsBuilder.addString("folderId", folderId != null ? String.valueOf(folderId) : null);
                 
                 JobParameters params = paramsBuilder.toJobParameters();
                 
