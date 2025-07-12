@@ -218,15 +218,15 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 |---|---|---|---|---|
 | GET | `/api/contents/info` | 콘텐츠 상세 정보 조회 | `contentsId` (Long) | `ContentsResponse` |
 | POST | `/api/contents/info-recently` | 최근 변경된 콘텐츠 목록 조회 | `type` (String), <br/>`pid` (Long) | `List<ContentsResponse>` |
-| GET | `/api/contents/recommend` | 추천 콘텐츠 목록 조회 | - | `List<Recommend<br/>ContentsResponse>` |
-| GET | `/api/contents/files` | 콘텐츠 파일 목록 조회 | `contentsId` (Long) | `List<FileInfo<br/>SummaryResponse>` |
-| GET | `/api/contents/contents-info-with-video-files` | 콘텐츠 정보 및 비디오 파일 목록 조회 | `fileId` (Long) | `ContentsInfo<br/>WithFilesResponse` |
-| POST | `/api/contents/search` | 키워드로 콘텐츠 검색 | `ContentsSearchRequest` | `List<Contents<br/>SearchResponse>` |
+| GET | `/api/contents/recommend` | 추천 콘텐츠 목록 조회 | - | `List<Recommend`<br/>`ContentsResponse>` |
+| GET | `/api/contents/files` | 콘텐츠 파일 목록 조회 | `contentsId` (Long) | `List<FileInfo`<br/>`SummaryResponse>` |
+| GET | `/api/contents/contents-info-with-video-files` | 콘텐츠 정보 및 비디오 파일 목록 조회 | `fileId` (Long) | `ContentsInfo`<br/>`WithFilesResponse` |
+| POST | `/api/contents/search` | 키워드로 콘텐츠 검색 | `ContentsSearchRequest` | `List<Contents`<br/>`SearchResponse>` |
 | GET, POST | `/api/contents/register-following` | 즐겨찾기 추가 | `contentsId` (Long) | `boolean` |
 | GET, POST | `/api/contents/delete-following` | 즐겨찾기 삭제 | `contentsId` (Long) | `boolean` |
-| GET | `/api/contents/get-following` | 즐겨찾기 목록 조회 | - | `List<ContentsResponse>` |
+| GET | `/api/contents/get-following` | 즐겨찾기 목록 조회 | - | `List<Contents`<br/>`Response>` |
 | GET, POST | `/api/contents/is-following` | 즐겨찾기 여부 확인 | `contentsId` (Long) | `boolean` |
-| GET, POST | `/api/contents/get-featured-banners` | 배너용 콘텐츠 목록 조회 | - | `List<Featured<br/>BannersResponse>` |
+| GET, POST | `/api/contents/get-featured-banners` | 배너용 콘텐츠 목록 조회 | - | `List<Featured`<br/>`BannersResponse>` |
 
 ### 파일 시스템 API
 
@@ -240,13 +240,13 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 | HTTP Method | URL | 설명 | 요청 본문 (Request Body) | 응답 (Response) |
 |---|---|---|---|---|
-| POST | `/api/batch<br/>/folder-sync` | 폴더 구조 동기화 배치 실행 | `FolderSyncBatchRequest` | `Map<String, Object>` |
-| POST | `/api/batch<br/>/folder-to-contents` | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest` | `Map<String, Object>` |
-| POST | `/api/batch<br/>/contents-to-file` | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest` | `Map<String, Object>` |
-| GET | `/api/batch<br/>/jobs` | 배치 작업 실행 내역 조회 | - | `List<Map<String, Object>>` |
-| GET | `/api/batch<br/>/status/{jobId}` | 특정 배치 작업 상태 조회 | - | `Map<String, Object>` |
-| GET | `/api/batch<br/>/stop/{jobExecutionId}` | 실행 중인 배치 작업 중지 | - | `Map<String, Object>` |
-| GET | `/api/batch<br/>/restart/{jobExecutionId}` | 실패한 배치 작업 재시작 | - | `Map<String, Object>` |
+| POST | `/api/batch/`<br/>`folder-sync` | 폴더 구조 동기화 배치 실행 | `FolderSyncBatchRequest` | `Map<String, Object>` |
+| POST | `/api/batch/`<br/>`folder-to-contents` | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest` | `Map<String, Object>` |
+| POST | `/api/batch/`<br/>`contents-to-file` | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest` | `Map<String, Object>` |
+| GET | `/api/batch/`<br/>`jobs` | 배치 작업 실행 내역 조회 | - | `List<Map<String, Object>>` |
+| GET | `/api/batch/`<br/>`status/{jobId}` | 특정 배치 작업 상태 조회 | - | `Map<String, Object>` |
+| GET | `/api/batch/`<br/>`stop/{jobExecutionId}` | 실행 중인 배치 작업 중지 | - | `Map<String, Object>` |
+| GET | `/api/batch/`<br/>`restart/{jobExecutionId}` | 실패한 배치 작업 재시작 | - | `Map<String, Object>` |
 
 ## 프로젝트 구조
 
