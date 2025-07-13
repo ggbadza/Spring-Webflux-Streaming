@@ -64,7 +64,7 @@ public class DataSourceConfig {
     @Bean
     public ResourceDatabasePopulator databasePopulator() {
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-        populator.addScript(new ClassPathResource("org/springframework/batch/core/schema-mysql.sql"));
+        populator.addScript(new ClassPathResource("org/springframework/batch/core/schema-h2.sql"));
         populator.setContinueOnError(true);
         return populator;
     }
