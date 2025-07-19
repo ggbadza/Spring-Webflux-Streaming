@@ -1,4 +1,4 @@
-package com.tankmilu.webflux;
+package com.tankmilu.batch;
 
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.boot.SpringApplication;
@@ -6,10 +6,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication
-public class WebfluxApplication {
+@ComponentScan(basePackages = {"com.tankmilu.batch", "com.tankmilu.webflux"})
+@EnableBatchProcessing
+public class BatchApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(WebfluxApplication.class, args);
-	}
-
+    public static void main(String[] args) {
+        SpringApplication.run(BatchApplication.class, args);
+    }
 }

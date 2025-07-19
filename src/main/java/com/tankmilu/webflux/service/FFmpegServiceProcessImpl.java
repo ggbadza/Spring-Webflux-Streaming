@@ -470,10 +470,10 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
 
                     drainStreamAsync(process.getErrorStream());
 
-                    // onExit()를 사용해 프로세스 종료를 나타내는 CompletableFuture 비동기 객체
+                    // onExit()를 사용해 프로세스 종료를 나타내는 CompletableFuture
                     return process.onExit();
                 })
-                .flatMap(Mono::fromFuture) // CompletableFuture 객체를 Mono 객체로 변환
+                .flatMap(Mono::fromFuture) //
                 .flatMap(process -> {
                     if (process.exitValue() == 0) {
                         // 성공 시, 비어있는 Mono를 반환하여 onComplete 신호 발생

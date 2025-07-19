@@ -4,7 +4,6 @@ import org.springframework.batch.core.configuration.annotation.EnableBatchProces
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.repository.support.JobRepositoryFactoryBean;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
@@ -24,18 +23,9 @@ public class DataSourceConfig {
 
     @Bean(name = "dataSource")
     @Primary
-    public DataSource batchDataSource(
-            @Value("${spring.datasource.driver-class-name}") String driverClassName,
-            @Value("${spring.datasource.url}") String url,
-            @Value("${spring.datasource.username}") String username,
-            @Value("${spring.datasource.password}") String password
-    ) {
-        return DataSourceBuilder.create()
-                .driverClassName(driverClassName)
-                .url(url)
-                .username(username)
-                .password(password)
-                .build();
+    @ConfigurationProperties(prefix = "spring.datasource")
+    public DataSource batchDataSource() {
+        return DataSourceBuilder.create().build();
     }
 
     @Bean
@@ -64,7 +54,7 @@ public class DataSourceConfig {
     @Bean
     public ResourceDatabasePopulator databasePopulator() {
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator();
-        populator.addScript(new ClassPathResource("org/springframework/batch/core/schema-h2.sql"));
+        populator.addScript(new ClassPathResource("org/springframework/batch/core/schema-mysql.sql"));
         populator.setContinueOnError(true);
         return populator;
     }

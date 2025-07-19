@@ -38,9 +38,6 @@ public class SecurityConfig {
     @Value("${app.user.urls.base}")
     private String userUrl;
 
-    @Value("${app.batch.urls.base}")
-    private String batchUrl;
-
     @Value("${app.video.urls.base}")
     private String videoUrl;
     @Value("${app.video.urls.subtitle}")
@@ -63,7 +60,6 @@ public class SecurityConfig {
 //                        .pathMatchers("/h2-console").permitAll()
                         .pathMatchers(userUrl+"/me").authenticated()
                         .pathMatchers(userUrl+"/**").permitAll()
-                        .pathMatchers(batchUrl+"/**").permitAll()
                         .pathMatchers(videoUrl+subtitleUrl+"/**").permitAll()
                         .pathMatchers("font/**").permitAll()
 //                        .pathMatchers("/**").permitAll()

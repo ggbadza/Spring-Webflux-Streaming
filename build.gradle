@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
 plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.3.8-SNAPSHOT'
@@ -8,6 +10,8 @@ group = 'com.tankmilu'
 version = '0.0.1-SNAPSHOT'
 
 java {
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
 	}
@@ -50,3 +54,26 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+bootJar {
+    enabled = false
+}
+
+tasks.register('webfluxJar', BootJar) {
+	group = 'build'
+	description = 'Builds a JAR file for the Webflux application.'
+	mainClass = 'com.tankmilu.webflux.WebfluxApplication'
+	archiveClassifier = 'webflux'
+	targetJavaVersion = java.targetCompatibility
+	classpath = sourceSets.main.runtimeClasspath
+}
+
+tasks.register('batchJar', BootJar) {
+	group = 'build'
+	description = 'Builds a JAR file for the Batch application.'
+	mainClass = 'com.tankmilu.batch.BatchApplication'
+	archiveClassifier = 'batch'
+	targetJavaVersion = java.targetCompatibility
+	classpath = sourceSets.main.runtimeClasspath
+}
+
