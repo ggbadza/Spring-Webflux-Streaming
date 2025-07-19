@@ -240,17 +240,6 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 | GET | `/api/filesystem/folders` | 디렉토리 내 폴더 목록 조회 | `type` (String), <br/>`folderId` (Long, optional, default: 1) | `List<DirectoryRecord>` |
 | POST | `/api/filesystem/video-info` | 비디오 파일 정보 조회 | `type` (String), <br/>`pid` (Long, optional, default: 0), `fn` (String) | `VideoFileRecord` |
 
-### 배치 API
-
-| HTTP Method | URL | 설명 | 요청 본문 (Request Body) | 응답 (Response) |
-|---|---|---|---|---|
-| POST | `/api/batch/`<br/>`folder-sync` | 폴더 구조 동기화 배치 실행 | `FolderSyncBatchRequest` | `Map<String, Object>` |
-| POST | `/api/batch/`<br/>`folder-to-contents` | 폴더 정보를 콘텐츠로 변환하는 배치 실행| `FolderToContentsBatchRequest` | `Map<String, Object>` |
-| POST | `/api/batch/`<br/>`contents-to-file` | 콘텐츠에서 파일 정보를 추출하는 배치 실행| `ContentsToFileBatchRequest` | `Map<String, Object>` |
-| GET | `/api/batch/`<br/>`jobs` | 배치 작업 실행 내역 조회 | - | `List<Map<String, Object>>` |
-| GET | `/api/batch/`<br/>`status/{jobId}` | 특정 배치 작업 상태 조회 | - | `Map<String, Object>` |
-| GET | `/api/batch/`<br/>`stop/{jobExecutionId}` | 실행 중인 배치 작업 중지 | - | `Map<String, Object>` |
-| GET | `/api/batch/`<br/>`restart/{jobExecutionId}` | 실패한 배치 작업 재시작 | - | `Map<String, Object>` |
 
 ## 프로젝트 구조
 
