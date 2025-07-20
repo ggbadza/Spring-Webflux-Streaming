@@ -20,7 +20,7 @@ R2DBC를 통해 데이터베이스와 리액티브하게 통신하며, Elasticse
 
 ### 연관 프로젝트
 
-해당 백엔드 프로젝트와 함께 사용하는 프론트엔드 프로젝트입니다.
+해당 백엔드 프로젝트와 함께 개발된 프론트엔드 프로젝트입니다.
 
 *   **프론트엔드**: [React-Streaming](https://github.com/ggbadza/React-Streaming)
 
