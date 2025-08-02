@@ -7,6 +7,7 @@ import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -28,6 +29,9 @@ public class UserController {
     private final ReactiveAuthenticationManager authenticationManager;
 
     private final UserService userService;
+
+    @Value("${app.user.urls.base}${app.user.urls.reissue}")
+    private String REFRESH_TOKEN_PATH;
 
     /**
      * 사용자 로그인을 처리함
@@ -89,7 +93,7 @@ public class UserController {
             ResponseCookie refreshTokenCookie = ResponseCookie.from("refreshToken", jwtResponse.refreshToken())
                     .httpOnly(true)
                     .secure(true) // SSL 통신 시 true 설정 필요
-                    .path("/")
+                    .path(REFRESH_TOKEN_PATH) // 리프레시 토큰 사용 제한
                     .maxAge(Duration.between(LocalDateTime.now(), jwtResponse.refreshExpirationDate())) // 현재 시간과 만기 시간의 차이
                     .build();
 
