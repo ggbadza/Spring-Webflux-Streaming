@@ -118,8 +118,6 @@ public class VideoController {
         return videoService.getVideoPlayList(fileId);
     }
 
-
-
     /**
      * HLS TS(Transport Stream) 세그먼트 파일을 제공함
      * 

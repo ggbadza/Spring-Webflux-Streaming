@@ -1,6 +1,6 @@
 package com.tankmilu.webflux.record;
 
-public record ContentsResponse(
+public record WeekendContentsResponse(
         Long contentsId,
         String title,
         String description,
@@ -8,5 +8,7 @@ public record ContentsResponse(
         String posterUrl,
         String backgroundUrl,
         String type,
-        Long folderId) {
+        Long folderId,
+        String folderName
+) {
 }

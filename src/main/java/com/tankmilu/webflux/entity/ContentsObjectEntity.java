@@ -35,6 +35,9 @@ public class ContentsObjectEntity implements Persistable<Long>, Serializable {
     @Column("poster_url")
     private String posterUrl;
 
+    @Column("background_url")
+    private String backgroundUrl;
+
     @Column("release_ym")
     private String releaseYM;
 
@@ -77,6 +80,7 @@ public class ContentsObjectEntity implements Persistable<Long>, Serializable {
             String description,
             String thumbnailUrl,
             String posterUrl,
+            String backgroundUrl,
             String releaseYM,
             String type,
             String subscriptionCode,
@@ -87,6 +91,7 @@ public class ContentsObjectEntity implements Persistable<Long>, Serializable {
         this.description = description;
         this.thumbnailUrl = thumbnailUrl;
         this.posterUrl = posterUrl;
+        this.backgroundUrl = backgroundUrl;
         this.releaseYM = releaseYM;
         this.type = type;
         this.folderId = folderId;

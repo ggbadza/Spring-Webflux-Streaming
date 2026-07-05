@@ -6,5 +6,7 @@ import reactor.core.publisher.Flux;
 
 public interface UserContentsRecommendRepository extends R2dbcRepository<UserContentsRecommendEntity, String> {
 
-    Flux<UserContentsRecommendEntity> findByUserIdOrderByRecommendSeq(String userId);
+    Flux<UserContentsRecommendEntity> findByUserIdAndRecommendSeqLessThanEqualOrderByRecommendSeq(String userId, Integer recommendSeq);
+
+    Flux<UserContentsRecommendEntity> findByUserIdAndRecommendSeqOrderByRecommendSeq(String userId, Integer recommendSeq);
 }

@@ -2,14 +2,18 @@ package com.tankmilu.webflux.service;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
 import com.tankmilu.webflux.entity.UserContentsFollowingEntity;
+import com.tankmilu.webflux.entity.UserRecentlyWatchedFileEntity;
 import com.tankmilu.webflux.enums.SubscriptionCodeEnum;
 import com.tankmilu.webflux.es.document.ContentsObjectDocument;
 import com.tankmilu.webflux.es.repository.ContentsObjectDocumentRepository;
 import com.tankmilu.webflux.exception.ContentsNotFoundException;
 import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.repository.*;
+import com.tankmilu.webflux.repository.folder.AnimationFolderTreeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -24,12 +28,20 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ContentsService {
 
+    private static final int DEFAULT_RECENT_CONTENTS_LIMIT = 20;
+    private static final int MAX_RECOMMEND_SEQ = 100;
+    private static final String WEEKEND_RECOMMEND_USER_ID = "0";
+    private static final int WEEKEND_RECOMMEND_SEQ = 9999;
+
     private final ContentsObjectRepository contentsObjectRepository;
+    private final ContentsQuarterRepository contentsQuarterRepository;
     private final ContentsFileRepository contentsFileRepository;
     private final UserContentsRecommendRepository userContentsRecommendRepository;
     private final ContentsObjectDocumentRepository contentsObjectDocumentRepository;
     private final UserContentsFollowingRepository userContentsFollowingRepository;
     private final FeaturedBannersRepository featuredBannersRepository;
+    private final UserRecentlyWatchedFileRepository userRecentlyWatchedFileRepository;
+    private final AnimationFolderTreeRepository animationFolderTreeRepository;
 
     public Mono<ContentsResponse> getContentsInfo(Long contentsId) {
         return contentsObjectRepository.findById(contentsId)
@@ -39,45 +51,71 @@ public class ContentsService {
                         contentsObject.getDescription(),
                         contentsObject.getThumbnailUrl(),
                         contentsObject.getPosterUrl(),
+                        contentsObject.getBackgroundUrl(),
                         contentsObject.getType(),
                         contentsObject.getFolderId()
                 ));
     }
 
-    public Flux<ContentsResponse> getContentsInfoRecently(String type, Long pid) {
+    public Flux<ContentsResponse> getContentsByQuarter(String quarterKey) {
+        return contentsQuarterRepository.findContentsByQuarterKey(quarterKey)
+                .map(contentsObject -> new ContentsResponse(
+                        contentsObject.getContentsId(),
+                        contentsObject.getTitle(),
+                        contentsObject.getDescription(),
+                        contentsObject.getThumbnailUrl(),
+                        contentsObject.getPosterUrl(),
+                        contentsObject.getBackgroundUrl(),
+                        contentsObject.getType(),
+                        contentsObject.getFolderId()
+                ));
+    }
+
+    public Mono<List<String>> getContentsQuarters() {
+        return contentsQuarterRepository.findDistinctQuarterKeys().collectList();
+    }
+
+    public Flux<ContentsResponse> getContentsInfoRecently(String type, Long pid, Integer n) {
+        int limit = n == null || n < 1 ? DEFAULT_RECENT_CONTENTS_LIMIT : n;
+        Pageable pageable = PageRequest.of(0, limit);
+
         // 컨텐츠 타입(type)이 null 인 경우 전체 컨텐츠의 최신 수정 순서
         if (type == null) {
-            return contentsObjectRepository.findTop20ByOrderByModifiedAtDesc()
+            return contentsObjectRepository.findAllByOrderByModifiedAtDesc(pageable)
                     .map(contentsObject -> new ContentsResponse(
                             contentsObject.getContentsId(),
                             contentsObject.getTitle(),
                             contentsObject.getDescription(),
                             contentsObject.getThumbnailUrl(),
                             contentsObject.getPosterUrl(),
+                            contentsObject.getBackgroundUrl(),
                             contentsObject.getType(),
                             contentsObject.getFolderId()
                     ));
         // 부모 폴더 id(pid)이 null 혹은 0인 경우 해당 컨텐츠의 전체 최신 수정 순서
         } else if (pid == null || pid.equals(0L)) {
-            return contentsObjectRepository.findTop20ByTypeEqualsOrderByModifiedAtDesc(type)
+            return contentsObjectRepository.findByTypeEqualsOrderByModifiedAtDesc(type, pageable)
                     .map(contentsObject -> new ContentsResponse(
                             contentsObject.getContentsId(),
                             contentsObject.getTitle(),
                             contentsObject.getDescription(),
                             contentsObject.getThumbnailUrl(),
                             contentsObject.getPosterUrl(),
+                            contentsObject.getBackgroundUrl(),
                             contentsObject.getType(),
                             contentsObject.getFolderId()
                     ));
         // 그 외의 경우 각 컨텐츠의 특정 폴더 내부 순서로 리턴
         } else {
             return contentsObjectRepository.findContentsObjectEntitiesByTypeAndFolderIdRecursive(type, pid)
+                    .take(limit)
                     .map(contentsObject -> new ContentsResponse(
                             contentsObject.getContentsId(),
                             contentsObject.getTitle(),
                             contentsObject.getDescription(),
                             contentsObject.getThumbnailUrl(),
                             contentsObject.getPosterUrl(),
+                            contentsObject.getBackgroundUrl(),
                             contentsObject.getType(),
                             contentsObject.getFolderId()
                     ));
@@ -86,12 +124,15 @@ public class ContentsService {
     }
 
     public Flux<RecommendContentsResponse> getRecommendContents(String userId) {
-        return userContentsRecommendRepository.findByUserIdOrderByRecommendSeq(userId)
+        return userContentsRecommendRepository.findByUserIdAndRecommendSeqLessThanEqualOrderByRecommendSeq(userId, MAX_RECOMMEND_SEQ)
                 // 데이터 미 존재 시, 기본값 "0"으로 받아오도록
-                .switchIfEmpty(userContentsRecommendRepository.findByUserIdOrderByRecommendSeq("0"))
+                .switchIfEmpty(userContentsRecommendRepository.findByUserIdAndRecommendSeqLessThanEqualOrderByRecommendSeq("0", MAX_RECOMMEND_SEQ))
                 // concatMap으로 Flux 순서 유지
                 .concatMap(recommend -> {
-                    Flux<ContentsResponse> contentsFlux = getContentsInfoRecently(recommend.getContentsType(), recommend.getFolderId());
+                    Flux<ContentsResponse> contentsFlux = getContentsInfoRecently(
+                            recommend.getContentsType(),
+                            recommend.getFolderId(),
+                            DEFAULT_RECENT_CONTENTS_LIMIT);
                     return contentsFlux.collectList()
                             .map(contentsList -> new RecommendContentsResponse(
                                     recommend.getUserId(),
@@ -100,6 +141,68 @@ public class ContentsService {
                                     contentsList
                             ));
                 });
+    }
+
+    public Flux<WeekendRecommendContentsResponse> getWeekendContents() {
+        return userContentsRecommendRepository
+                .findByUserIdAndRecommendSeqOrderByRecommendSeq(WEEKEND_RECOMMEND_USER_ID, WEEKEND_RECOMMEND_SEQ)
+                .concatMap(recommend -> getWeekendContentsInfoRecently(recommend.getContentsType(), recommend.getFolderId())
+                        .collectList()
+                        .map(contentsList -> new WeekendRecommendContentsResponse(
+                                recommend.getDescription(),
+                                filterContentsByFolderNamePrefix(contentsList, "1"),
+                                filterContentsByFolderNamePrefix(contentsList, "2"),
+                                filterContentsByFolderNamePrefix(contentsList, "3"),
+                                filterContentsByFolderNamePrefix(contentsList, "4"),
+                                filterContentsByFolderNamePrefix(contentsList, "5"),
+                                filterContentsByFolderNamePrefix(contentsList, "6"),
+                                filterContentsByFolderNamePrefix(contentsList, "7"),
+                                filterContentsByFolderNamePrefix(contentsList, "0")
+                        )));
+    }
+
+    private List<WeekendContentsResponse> filterContentsByFolderNamePrefix(
+            List<WeekendContentsResponse> contentsList,
+            String prefix) {
+        return contentsList.stream()
+                .filter(contents -> StringUtils.hasText(contents.folderName()))
+                .filter(contents -> contents.folderName().trim().startsWith(prefix))
+                .toList();
+    }
+
+    private Flux<WeekendContentsResponse> getWeekendContentsInfoRecently(String type, Long pid) {
+        return getContentsInfoRecently(type, pid, 1000)
+                .flatMapSequential(contents -> animationFolderTreeRepository.findByFolderId(contents.folderId())
+                        .map(folder -> toWeekendContentsResponse(contents, getLastFolderName(folder.getFolderPath())))
+                        .defaultIfEmpty(toWeekendContentsResponse(contents, null)));
+    }
+
+    private WeekendContentsResponse toWeekendContentsResponse(ContentsResponse contents, String folderName) {
+        return new WeekendContentsResponse(
+                contents.contentsId(),
+                contents.title(),
+                contents.description(),
+                contents.thumbnailUrl(),
+                contents.posterUrl(),
+                contents.backgroundUrl(),
+                contents.type(),
+                contents.folderId(),
+                folderName
+        );
+    }
+
+    private String getLastFolderName(String folderPath) {
+        if (!StringUtils.hasText(folderPath)) {
+            return null;
+        }
+
+        String normalizedPath = folderPath.trim().replace('\\', '/');
+        while (normalizedPath.endsWith("/")) {
+            normalizedPath = normalizedPath.substring(0, normalizedPath.length() - 1);
+        }
+
+        int lastSeparatorIndex = normalizedPath.lastIndexOf('/');
+        return lastSeparatorIndex >= 0 ? normalizedPath.substring(lastSeparatorIndex + 1) : normalizedPath;
     }
 
     public Flux<FileInfoSummaryResponse> getContentsFiles(Long contentsId) {
@@ -115,6 +218,26 @@ public class ContentsService {
                             fileEntity.getCreatedAt()
                     );
                 });
+    }
+
+    public Flux<VideoInfoSummaryResponse> getVideoHistory(String userId, Integer size) {
+        int limit = size == null ? 20 : Math.min(Math.max(size, 1), 100);
+        return userRecentlyWatchedFileRepository.findVideoHistoryByUserId(userId, limit);
+    }
+
+    public Mono<Boolean> setVideoRecord(
+            String userId,
+            Long fileId,
+            Integer positionSec,
+            Integer durationSec,
+            Integer progress) {
+        return userRecentlyWatchedFileRepository
+                .setVideoRecord(userId, fileId, positionSec, durationSec, progress)
+                .map(updatedRows -> updatedRows > 0);
+    }
+
+    public Mono<UserRecentlyWatchedFileEntity> getVideoRecord(String userId, Long fileId) {
+        return userRecentlyWatchedFileRepository.findByUserIdAndFileId(userId, fileId);
     }
 
     public Mono<ContentsInfoWithFilesResponse> getContentsInfoWithVideoFiles(Long fileId) {

@@ -101,11 +101,28 @@ CREATE TABLE `contents_file_entity` (
                                         `contents_id` int DEFAULT NULL COMMENT '컨텐츠 ID',
                                         `subtitle_path` varchar(1000) DEFAULT NULL,
                                         `resolution` varchar(50) DEFAULT NULL,
+                                        `thumbnail_url` varchar(500) DEFAULT NULL,
                                         `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                         `subtitle_created_at` datetime DEFAULT NULL COMMENT '자막 추가 시간',
                                         PRIMARY KEY (`file_id`),
                                         KEY `idx_contents_file_id` (`contents_id`,`file_name`)
 ) ENGINE=InnoDB AUTO_INCREMENT=48766 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+-- webflux.user_recently_watched_file definition
+
+CREATE TABLE `user_recently_watched_file` (
+                                              `id` bigint NOT NULL AUTO_INCREMENT,
+                                              `user_id` varchar(50) NOT NULL,
+                                              `file_id` bigint NOT NULL,
+                                              `position_sec` int NOT NULL DEFAULT '0',
+                                              `duration_sec` int NOT NULL DEFAULT '0',
+                                              `progress` tinyint NOT NULL DEFAULT '0',
+                                              `watched_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                              PRIMARY KEY (`id`),
+                                              UNIQUE KEY `uq_urwf_user_file` (`user_id`,`file_id`),
+                                              KEY `idx_urwf_user_watched_at` (`user_id`,`watched_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 
 -- webflux.contents_keywords definition
@@ -141,6 +158,17 @@ CREATE TABLE `contents_object_entity` (
                                           KEY `idx_modified_at` (`modified_at`),
                                           KEY `contents_object_entity_series_id_IDX` (`series_id`,`season`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=3890 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- webflux.contents_quarter_entity definition
+
+CREATE TABLE `contents_quarter_entity` (
+                                           `quarter_key` varchar(5) NOT NULL COMMENT '분기 키, 예: 20241',
+                                           `contents_id` int NOT NULL COMMENT '컨텐츠 ID',
+                                           `poster_url` varchar(500) DEFAULT NULL COMMENT '포스터 url',
+                                           `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+                                           `modified_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                           PRIMARY KEY (`quarter_key`,`contents_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='분기별 컨텐츠 데이터';
 
 
 -- webflux.featured_banners definition

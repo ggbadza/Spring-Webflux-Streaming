@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @AllArgsConstructor
@@ -158,6 +159,7 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
         // 3-a. 폴더가 있으나 컨텐츠가 없는 폴더에 대해 ContentsObjectEntity 생성
 
         List<ContentsObjectEntity> contentsToSave = new ArrayList<>();
+        List<T> foldersToUpdate = new ArrayList<>();
 
 
 
@@ -175,6 +177,12 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
 
 
             } else {
+                ContentsObjectEntity existingContent = existingContentsMap.get(folderId);
+                if (!Objects.equals(folder.getContentsId(), existingContent.getContentsId())) {
+                    folder.setContentsId(existingContent.getContentsId());
+                    foldersToUpdate.add(folder);
+                    log.debug("폴더 contents_id 보정: folderId={}, contentsId={}", folderId, existingContent.getContentsId());
+                }
                 log.debug("이미 콘텐츠가 존재하는 폴더: {}", folder.getName());
             }
         }
@@ -207,9 +215,32 @@ public class FolderToContentsUpdateTasklet<T extends FolderTreeEntity> implement
         Mono<Void> operations = Mono.empty();
 
         if (!contentsToSave.isEmpty()) {
-            operations=operations.then(contentsRepository.saveAll(contentsToSave).then());
+            operations = operations.then(
+                    contentsRepository.saveAll(contentsToSave)
+                            .collectList()
+                            .flatMap(savedContents -> {
+                                for (ContentsObjectEntity savedContent : savedContents) {
+                                    T folder = folderEntityMap.get(savedContent.getFolderId());
+                                    if (folder != null && !Objects.equals(folder.getContentsId(), savedContent.getContentsId())) {
+                                        folder.setContentsId(savedContent.getContentsId());
+                                        foldersToUpdate.add(folder);
+                                        log.debug("신규 컨텐츠 ID를 폴더에 반영: folderId={}, contentsId={}",
+                                                savedContent.getFolderId(), savedContent.getContentsId());
+                                    }
+                                }
+                                return Mono.empty();
+                            })
+            );
             log.info("콘텐츠 엔티티 저장 작업 등록 완료");
         }
+
+        operations = operations.then(Mono.defer(() -> {
+            if (foldersToUpdate.isEmpty()) {
+                return Mono.empty();
+            }
+            log.info("폴더 contents_id 업데이트 작업 등록 완료. 대상 수: {}", foldersToUpdate.size());
+            return folderRepository.saveAll(foldersToUpdate).then();
+        }));
         
         // 콘텐츠 삭제는 수동 처리
 //        if (!contentsToDelete.isEmpty()) {

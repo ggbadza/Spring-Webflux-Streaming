@@ -11,6 +11,7 @@ public record FeaturedBannersResponse(
         BigDecimal userRating,
         String posterUrl,
         String thumbnailUrl,
+        String backgrountUrl,
         String seriesId,
         String season) {
 
@@ -24,6 +25,7 @@ public record FeaturedBannersResponse(
                 entity.getUserRating(),
                 entity.getPosterUrl(),
                 entity.getThumbnailUrl(),
+                entity.getBackgroundUrl(),
                 entity.getSeriesId(),
                 entity.getSeason()
         );

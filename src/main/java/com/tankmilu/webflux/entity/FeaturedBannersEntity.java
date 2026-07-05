@@ -44,6 +44,9 @@ public class FeaturedBannersEntity implements Persistable<Long>, Serializable {
     @Column("thumbnail_url")
     private String thumbnailUrl;
 
+    @Column("background_url")
+    private String backgroundUrl;
+
     @Column("series_id")
     private String seriesId;
 
@@ -78,6 +81,7 @@ public class FeaturedBannersEntity implements Persistable<Long>, Serializable {
             BigDecimal userRating,
             String posterUrl,
             String thumbnailUrl,
+            String backgroundUrl,
             String seriesId,
             String season,
             LocalDateTime createdAt,
@@ -91,6 +95,7 @@ public class FeaturedBannersEntity implements Persistable<Long>, Serializable {
         this.userRating = userRating;
         this.posterUrl = posterUrl;
         this.thumbnailUrl = thumbnailUrl;
+        this.backgroundUrl = backgroundUrl;
         this.seriesId = seriesId;
         this.season = season;
         this.createdAt = createdAt;

@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -451,7 +452,12 @@ public class FFmpegServiceProcessImpl implements FFmpegService {
                 .flatMap(content -> {
                     // 수정된 내용을 파일로 저장
                     DataBuffer buffer = dataBufferFactory.wrap(content.getBytes(StandardCharsets.UTF_8));
-                    return DataBufferUtils.write(Flux.just(buffer), Paths.get(outputPath));
+                    return DataBufferUtils.write(
+                            Flux.just(buffer),
+                            Paths.get(outputPath),
+                            StandardOpenOption.CREATE,
+                            StandardOpenOption.TRUNCATE_EXISTING,
+                            StandardOpenOption.WRITE);
                 })
                 .then(Mono.just(true))  // 성공시 true 반환
                 .onErrorReturn(false);  // 실패시 false 반환

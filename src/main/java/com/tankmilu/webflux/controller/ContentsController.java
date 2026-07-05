@@ -1,5 +1,6 @@
 package com.tankmilu.webflux.controller;
 
+import com.tankmilu.webflux.entity.UserRecentlyWatchedFileEntity;
 import com.tankmilu.webflux.record.*;
 import com.tankmilu.webflux.security.CustomUserDetails;
 import com.tankmilu.webflux.service.ContentsService;
@@ -8,6 +9,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 /**
  * 컨텐츠 파일에 대한 정보를 요청하는 REST API 컨트롤러
@@ -41,11 +44,12 @@ public class ContentsController {
      * @return 컨텐츠 정보가 포함된 응답 객체 Flux(ContentsReponse)를 수정시간의 역순으로 반환
      *
      */
-    @PostMapping("${app.contents.urls.info_recently}")
+    @RequestMapping("${app.contents.urls.info_recently}")
     public Flux<ContentsResponse> getContentsInfoRecently(
-            @RequestParam String type,
-            @RequestParam Long pid) {
-        return contentsService.getContentsInfoRecently(type, pid);
+            @RequestParam(required = false) String type,
+            @RequestParam Long pid,
+            @RequestParam(defaultValue = "20") Integer n) {
+        return contentsService.getContentsInfoRecently(type, pid, n);
     }
 
     /**
@@ -61,17 +65,88 @@ public class ContentsController {
         return contentsService.getRecommendContents(userDetails.getUsername());
     }
 
+    @RequestMapping("${app.contents.urls.weekend_contents}")
+    public Flux<WeekendRecommendContentsResponse> getWeekendContents() {
+        return contentsService.getWeekendContents();
+    }
+
+    @RequestMapping("${app.contents.urls.quarter_contents}")
+    public Flux<ContentsResponse> getContentsByQuarter(
+            @RequestParam String quarterKey) {
+        return contentsService.getContentsByQuarter(quarterKey);
+    }
+
+    @RequestMapping("${app.contents.urls.quarters}")
+    public Mono<List<String>> getContentsQuarters() {
+        return contentsService.getContentsQuarters();
+    }
+
     /**
      * 각 컨텐츠에 속한 파일들을 리턴
      *
      * @param contentsId 조회 할 컨텐츠ID
-     * @return 추천 컨텐츠 정보가 포함된 응답 객체 Flux(RecommendContentsResponse)를 반환
+     * @return 추천 컨텐츠 정보가 포함된 응답 객체 Flux(
+     * RecommendContentsResponse)를 반환
      *
      */
     @RequestMapping("${app.contents.urls.files}")
     public Flux<FileInfoSummaryResponse> getContentsFiles(
             @RequestParam Long contentsId) {
         return contentsService.getContentsFiles(contentsId);
+    }
+
+    /**
+     * 로그인한 사용자의 최근 시청 비디오 파일 목록을 조회합니다.
+     *
+     * @param userDetails 로그인한 사용자 정보
+     * @param size 조회할 최대 개수. 값이 없으면 기본 개수를 사용합니다.
+     * @return 최근 시청 일시 기준 내림차순 비디오 요약 정보
+     */
+    @RequestMapping("${app.contents.urls.history}")
+    public Flux<VideoInfoSummaryResponse> getVideoHistory(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam(required = false) Integer size) {
+        return contentsService.getVideoHistory(userDetails.getUsername(), size);
+    }
+
+    /**
+     * 로그인한 사용자의 비디오 재생 기록을 저장하거나 갱신합니다.
+     *
+     * @param userDetails 로그인한 사용자 정보
+     * @param fileId 기록할 비디오 파일 ID
+     * @param positionSec 마지막 재생 위치(초)
+     * @param durationSec 전체 재생 시간(초)
+     * @param progress 재생 진행률
+     * @return 저장 또는 갱신 성공 여부
+     */
+    @RequestMapping("${app.contents.urls.set_record}")
+    public Mono<Boolean> setVideoRecord(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long fileId,
+            @RequestParam Integer positionSec,
+            @RequestParam Integer durationSec,
+            @RequestParam Integer progress) {
+        return contentsService.setVideoRecord(
+                userDetails.getUsername(),
+                fileId,
+                positionSec,
+                durationSec,
+                progress
+        );
+    }
+
+    /**
+     * 로그인한 사용자의 특정 비디오 재생 기록을 조회합니다.
+     *
+     * @param userDetails 로그인한 사용자 정보
+     * @param fileId 조회할 비디오 파일 ID
+     * @return 비디오 재생 기록
+     */
+    @RequestMapping("${app.contents.urls.get_record}")
+    public Mono<UserRecentlyWatchedFileEntity> getVideoRecord(
+            @AuthenticationPrincipal CustomUserDetails userDetails,
+            @RequestParam Long fileId) {
+        return contentsService.getVideoRecord(userDetails.getUsername(), fileId);
     }
 
     /**

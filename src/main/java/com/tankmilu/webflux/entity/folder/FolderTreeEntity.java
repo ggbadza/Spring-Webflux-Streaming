@@ -48,6 +48,7 @@ public abstract class FolderTreeEntity implements Persistable<Long> {
     @Column("has_files")
     private Boolean hasFiles;
 
+    @Setter
     @Column("contents_id")
     private Long contentsId;  // AUTO_INCREMENT는 DB에서 처리
 

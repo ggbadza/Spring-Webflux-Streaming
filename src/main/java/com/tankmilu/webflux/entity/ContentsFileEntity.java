@@ -46,6 +46,11 @@ public class ContentsFileEntity implements Persistable<Long>, Serializable {
     @Column("resolution")
     private String resolution;      // 파일 해상도 (예: "1080")
 
+    @Getter
+    @Setter
+    @Column("thumbnail_url")
+    private String thumbnailUrl;
+
     @CreatedDate
     @Getter
     @Column("created_at")
@@ -66,6 +71,7 @@ public class ContentsFileEntity implements Persistable<Long>, Serializable {
                               String filePath,
                               String subtitlePath,
                               String resolution,
+                              String thumbnailUrl,
                               Long contentsId,
                               LocalDateTime subtitleCreatedAt) {
         this.fileId       = fileId;
@@ -73,6 +79,7 @@ public class ContentsFileEntity implements Persistable<Long>, Serializable {
         this.filePath     = filePath;
         this.subtitlePath = subtitlePath;
         this.resolution   = resolution;
+        this.thumbnailUrl = thumbnailUrl;
         this.contentsId   = contentsId;
         this.subtitleCreatedAt = subtitleCreatedAt;
         this.isNewRecord  = true;

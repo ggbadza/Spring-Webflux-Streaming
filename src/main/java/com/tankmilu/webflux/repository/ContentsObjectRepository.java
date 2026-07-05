@@ -1,8 +1,7 @@
 package com.tankmilu.webflux.repository;
 
 import com.tankmilu.webflux.entity.ContentsObjectEntity;
-import io.r2dbc.spi.Result;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Flux;
@@ -40,7 +39,7 @@ public interface ContentsObjectRepository extends R2dbcRepository<ContentsObject
             ) c ON h.folder_id = c.parent_folder_id
         )
         
-        SELECT b.contents_id, b.title, b.description, b.`type`, b.folder_id, b.release_ym, b.thumbnail_url, b.created_at, b.modified_at, b.poster_url, b.subscription_code, b.series_id, b.season
+        SELECT b.contents_id, b.title, b.description, b.`type`, b.folder_id, b.release_ym, b.thumbnail_url, b.background_url, b.created_at, b.modified_at, b.poster_url, b.subscription_code, b.series_id, b.season
         FROM folder_hierarchy a, contents_object_entity b
         WHERE a.has_files = 1
         and b.`type`  = :type
@@ -49,10 +48,10 @@ public interface ContentsObjectRepository extends R2dbcRepository<ContentsObject
         """)
     Flux<ContentsObjectEntity> findContentsObjectEntitiesByTypeAndFolderIdRecursive(String type,Long folderId);
 
-    Flux<ContentsObjectEntity> findTop20ByOrderByModifiedAtDesc();
+    Flux<ContentsObjectEntity> findAllByOrderByModifiedAtDesc(Pageable pageable);
 
     // 타입 필터링
-    Flux<ContentsObjectEntity> findTop20ByTypeEqualsOrderByModifiedAtDesc(String type);
+    Flux<ContentsObjectEntity> findByTypeEqualsOrderByModifiedAtDesc(String type, Pageable pageable);
 
 
 }
